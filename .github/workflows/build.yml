@@ -36,7 +36,16 @@ jobs:
           gradle-version: '8.10.2'
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
+  run: |
+    set -o pipefail
+    gradle :app:assembleDebug --stacktrace --info --console=plain --no-daemon 2>&1 | tee build-log.txt
+
+- name: Upload build log
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: build-log
+    path: build-log.txt
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
