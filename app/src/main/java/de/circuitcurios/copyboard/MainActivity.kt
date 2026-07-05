@@ -73,7 +73,7 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(dp(56), dp(52))
         )
 
-        val hint = TextView(this).apply {
+        val helpText = TextView(this).apply {
             text = "Antippen kopiert. Lange drücken bearbeitet. Favoriten erscheinen im Widget."
             textSize = 13f
             setTextColor(Color.rgb(90, 90, 90))
@@ -81,8 +81,8 @@ class MainActivity : Activity() {
         }
 
         searchInput = EditText(this).apply {
-            hint = "Suchen …"
-            singleLine = true
+            setHint("Suchen …")
+            setSingleLine(true)
             setPadding(dp(12), 0, dp(12), 0)
             background = roundedBackground(Color.WHITE, stroke = Color.rgb(220, 220, 220))
             addTextChangedListener(object : TextWatcher {
@@ -103,7 +103,7 @@ class MainActivity : Activity() {
         }
 
         root.addView(header)
-        root.addView(hint)
+        root.addView(helpText)
         root.addView(searchInput, LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
@@ -200,19 +200,19 @@ class MainActivity : Activity() {
         }
 
         val titleInput = EditText(this).apply {
-            hint = "Titel"
-            singleLine = true
+            setHint("Titel")
+            setSingleLine(true)
             setText(existing?.title.orEmpty())
         }
 
         val categoryInput = EditText(this).apply {
-            hint = "Kategorie"
-            singleLine = true
+            setHint("Kategorie")
+            setSingleLine(true)
             setText(existing?.category ?: "General")
         }
 
         val textInput = EditText(this).apply {
-            hint = "Textbaustein"
+            setHint("Textbaustein")
             minLines = 5
             maxLines = 10
             gravity = Gravity.TOP
