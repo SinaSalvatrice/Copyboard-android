@@ -15,7 +15,7 @@
         <TextView
             android:id="@+id/widgetTitle"
             android:layout_width="0dp"
-            android:layout_height="36dp"
+            android:layout_height="32dp"
             android:layout_weight="1"
             android:gravity="center_vertical"
             android:text="Copyboard"
@@ -25,8 +25,8 @@
 
         <TextView
             android:id="@+id/widgetOpenApp"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="34dp"
+            android:layout_height="32dp"
             android:gravity="center"
             android:text="+"
             android:textColor="@color/widget_text_primary"
@@ -34,51 +34,211 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <Button
-        android:id="@+id/widgetSnippet1"
+    <LinearLayout
+        android:id="@+id/widgetSnippetRow1"
         android:layout_width="match_parent"
-        android:layout_height="38dp"
+        android:layout_height="52dp"
         android:layout_marginTop="4dp"
         android:background="@drawable/snippet_button_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Snippet 1"
-        android:textAllCaps="false"
-        android:textColor="@color/widget_text_secondary" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp">
 
-    <Button
-        android:id="@+id/widgetSnippet2"
-        android:layout_width="match_parent"
-        android:layout_height="38dp"
-        android:layout_marginTop="4dp"
-        android:background="@drawable/snippet_button_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Snippet 2"
-        android:textAllCaps="false"
-        android:textColor="@color/widget_text_secondary" />
+        <LinearLayout
+            android:id="@+id/widgetSnippetContent1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
 
-    <Button
-        android:id="@+id/widgetSnippet3"
-        android:layout_width="match_parent"
-        android:layout_height="38dp"
-        android:layout_marginTop="4dp"
-        android:background="@drawable/snippet_button_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Snippet 3"
-        android:textAllCaps="false"
-        android:textColor="@color/widget_text_secondary" />
+            <TextView
+                android:id="@+id/widgetSnippetTitle1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Snippet 1"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/widgetSnippet4"
+            <TextView
+                android:id="@+id/widgetSnippetPreview1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Preview"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widgetSnippetCopy1"
+            android:layout_width="38dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⧉"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widgetSnippetRow2"
         android:layout_width="match_parent"
-        android:layout_height="38dp"
+        android:layout_height="52dp"
         android:layout_marginTop="4dp"
         android:background="@drawable/snippet_button_background"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Snippet 4"
-        android:textAllCaps="false"
-        android:textColor="@color/widget_text_secondary" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp">
+
+        <LinearLayout
+            android:id="@+id/widgetSnippetContent2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widgetSnippetTitle2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Snippet 2"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widgetSnippetPreview2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Preview"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widgetSnippetCopy2"
+            android:layout_width="38dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⧉"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widgetSnippetRow3"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/snippet_button_background"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp">
+
+        <LinearLayout
+            android:id="@+id/widgetSnippetContent3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widgetSnippetTitle3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Snippet 3"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widgetSnippetPreview3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Preview"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widgetSnippetCopy3"
+            android:layout_width="38dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⧉"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widgetSnippetRow4"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="4dp"
+        android:background="@drawable/snippet_button_background"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="6dp">
+
+        <LinearLayout
+            android:id="@+id/widgetSnippetContent4"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/widgetSnippetTitle4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Snippet 4"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widgetSnippetPreview4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Preview"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/widgetSnippetCopy4"
+            android:layout_width="38dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="⧉"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 </LinearLayout>
