@@ -59,6 +59,14 @@ class MainActivity : Activity() {
         when (requestCode) {
             REQUEST_EXPORT_BACKUP -> exportBackup(uri)
             REQUEST_IMPORT_BACKUP -> importBackup(uri)
+            REQUEST_CREATE_SYNC_FILE -> {
+                rememberSyncFile(uri, data.flags)
+                syncSave()
+            }
+            REQUEST_OPEN_SYNC_FILE -> {
+                rememberSyncFile(uri, data.flags)
+                askLoadFromSyncFile()
+            }
         }
     }
 
@@ -121,7 +129,7 @@ class MainActivity : Activity() {
             })
         }
 
-        val backupRow = LinearLayout(this).apply {
+        val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(8), 0, 0)
@@ -134,13 +142,22 @@ class MainActivity : Activity() {
         }
 
         val importButton = Button(this).apply {
-            text = "Wiederherstellen"
+            text = "Restore"
             setTextColor(colors.accent)
             setOnClickListener { showImportModeDialog() }
         }
 
-        backupRow.addView(exportButton, LinearLayout.LayoutParams(0, dp(46), 1f))
-        backupRow.addView(importButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+        val syncButton = Button(this).apply {
+            text = "Sync"
+            setTextColor(colors.accent)
+            setOnClickListener { showSyncDialog() }
+        }
+
+        actionRow.addView(exportButton, LinearLayout.LayoutParams(0, dp(46), 1f))
+        actionRow.addView(importButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+        actionRow.addView(syncButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
             setMargins(dp(8), 0, 0, 0)
         })
 
@@ -165,7 +182,7 @@ class MainActivity : Activity() {
         root.addView(header)
         root.addView(helpText)
         root.addView(searchInput, LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
-        root.addView(backupRow, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        root.addView(actionRow, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(groupFilterScroll, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
@@ -448,9 +465,7 @@ class MainActivity : Activity() {
 
     private fun exportBackup(uri: Uri) {
         runCatching {
-            contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
-                writer.write(store.exportBackupJson())
-            } ?: error("No output stream")
+            writeBackupToUri(uri)
         }.onSuccess {
             Toast.makeText(this, "Backup gespeichert.", Toast.LENGTH_SHORT).show()
         }.onFailure {
@@ -460,19 +475,163 @@ class MainActivity : Activity() {
 
     private fun importBackup(uri: Uri) {
         runCatching {
-            val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
-                reader.readText()
-            } ?: error("No input stream")
-            store.importBackupJson(raw, importReplaceExisting)
+            importBackupFromUri(uri, importReplaceExisting)
         }.onSuccess { count ->
-            snippets = store.getAll()
-            selectedGroup = null
-            CopyboardWidgetProvider.updateAll(this)
-            renderSnippets()
+            refreshAfterImport()
             Toast.makeText(this, "$count Textbausteine wiederhergestellt.", Toast.LENGTH_SHORT).show()
         }.onFailure {
             Toast.makeText(this, "Backup konnte nicht gelesen werden.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun showSyncDialog() {
+        val hasSyncFile = getSyncUri() != null
+        val options = if (hasSyncFile) {
+            arrayOf(
+                "Aus Sync-Datei laden",
+                "In Sync-Datei sichern",
+                "Andere Sync-Datei wählen",
+                "Neue Sync-Datei erstellen",
+                "Sync-Verknüpfung entfernen"
+            )
+        } else {
+            arrayOf(
+                "Neue Sync-Datei erstellen",
+                "Bestehende Sync-Datei wählen"
+            )
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Synchronisierung")
+            .setItems(options) { _, which ->
+                when (options[which]) {
+                    "Aus Sync-Datei laden" -> confirmSyncLoad()
+                    "In Sync-Datei sichern" -> syncSave()
+                    "Andere Sync-Datei wählen", "Bestehende Sync-Datei wählen" -> startSyncFileOpen()
+                    "Neue Sync-Datei erstellen" -> startSyncFileCreate()
+                    "Sync-Verknüpfung entfernen" -> clearSyncFile()
+                }
+            }
+            .show()
+    }
+
+    private fun startSyncFileCreate() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, "copyboard-sync.json")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, REQUEST_CREATE_SYNC_FILE)
+    }
+
+    private fun startSyncFileOpen() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, REQUEST_OPEN_SYNC_FILE)
+    }
+
+    private fun rememberSyncFile(uri: Uri, grantFlags: Int) {
+        runCatching {
+            val flags = grantFlags and (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            if (flags != 0) {
+                contentResolver.takePersistableUriPermission(uri, flags)
+            }
+        }
+        syncPrefs().edit().putString(KEY_SYNC_URI, uri.toString()).apply()
+        Toast.makeText(this, "Sync-Datei verknüpft.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun askLoadFromSyncFile() {
+        AlertDialog.Builder(this)
+            .setTitle("Sync-Datei verknüpft")
+            .setMessage("Möchtest du jetzt die Daten aus dieser Datei laden? Deine aktuelle Liste wird dadurch ersetzt.")
+            .setPositiveButton("Laden") { _, _ -> syncLoad() }
+            .setNegativeButton("Nur merken", null)
+            .show()
+    }
+
+    private fun confirmSyncLoad() {
+        AlertDialog.Builder(this)
+            .setTitle("Aus Sync-Datei laden")
+            .setMessage("Die aktuelle Liste wird durch den Inhalt der Sync-Datei ersetzt.")
+            .setPositiveButton("Laden") { _, _ -> syncLoad() }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun syncSave() {
+        val uri = getSyncUri()
+        if (uri == null) {
+            Toast.makeText(this, "Noch keine Sync-Datei gewählt.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        runCatching {
+            writeBackupToUri(uri)
+        }.onSuccess {
+            Toast.makeText(this, "Sync-Datei aktualisiert.", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "Sync-Datei konnte nicht geschrieben werden.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun syncLoad() {
+        val uri = getSyncUri()
+        if (uri == null) {
+            Toast.makeText(this, "Noch keine Sync-Datei gewählt.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        runCatching {
+            importBackupFromUri(uri, replaceExisting = true)
+        }.onSuccess { count ->
+            refreshAfterImport()
+            Toast.makeText(this, "$count Textbausteine synchronisiert.", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "Sync-Datei konnte nicht gelesen werden.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun clearSyncFile() {
+        syncPrefs().edit().remove(KEY_SYNC_URI).apply()
+        Toast.makeText(this, "Sync-Verknüpfung entfernt.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun getSyncUri(): Uri? {
+        val raw = syncPrefs().getString(KEY_SYNC_URI, null) ?: return null
+        return Uri.parse(raw)
+    }
+
+    private fun syncPrefs() = getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)
+
+    private fun writeBackupToUri(uri: Uri) {
+        contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { writer ->
+            writer.write(store.exportBackupJson())
+        } ?: error("No output stream")
+    }
+
+    private fun importBackupFromUri(uri: Uri, replaceExisting: Boolean): Int {
+        val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+            reader.readText()
+        } ?: error("No input stream")
+        return store.importBackupJson(raw, replaceExisting)
+    }
+
+    private fun refreshAfterImport() {
+        snippets = store.getAll()
+        selectedGroup = null
+        CopyboardWidgetProvider.updateAll(this)
+        renderSnippets()
     }
 
     private fun backupFileName(): String {
@@ -516,5 +675,9 @@ class MainActivity : Activity() {
     companion object {
         private const val REQUEST_EXPORT_BACKUP = 1001
         private const val REQUEST_IMPORT_BACKUP = 1002
+        private const val REQUEST_CREATE_SYNC_FILE = 1003
+        private const val REQUEST_OPEN_SYNC_FILE = 1004
+        private const val SYNC_PREFS_NAME = "copyboard_sync"
+        private const val KEY_SYNC_URI = "sync_file_uri"
     }
 }
