@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "app": "Copyboard",
+  "snippets": [
+    {
+      "id": "29790aae-07f1-41b1-ad4f-f8b7c2b995e8",
+      "title": "Etsy Tags - Aluminium Ring",
+      "text": "adjustable band, aluminum jewelry, handmade metal, industrial style, minimalist, unisex jewelry, nickel free, brushed aluminum, everyday piece, made to order",
+      "category": "Etsy",
+      "favorite": true
+    },
+    {
+      "id": "26ab7609-7337-41c3-a021-a8afe5693e27",
+      "title": "Material DE",
+      "text": "Nickelfreier, sehr leichter Aluminiumschmuck, von Hand gebogen, flachgehämmert und poliert.",
+      "category": "Schmuck",
+      "favorite": true
+    },
+    {
+      "id": "9e6481b7-8cd6-42c6-97d3-d770464b8eef",
+      "title": "Material EN",
+      "text": "Nickel-free, lightweight aluminum jewelry, bent, flattened and polished by hand.",
+      "category": "Jewelry",
+      "favorite": true
+    },
+    {
+      "id": "a5246b20-0053-4dbf-a810-bb5476e24ebe",
+      "title": "Kundenantwort EN",
+      "text": "Thank you so much for your message. I will check this and get back to you.",
+      "category": "Customer",
+      "favorite": true
+    },
+    {
+      "id": "a7c66a67-aa32-4d64-8dab-ab4f359cb3c6",
+      "title": "AI Prompt - Schmuckfoto",
+      "text": "product photo of handmade aluminum jewelry, industrial neutral background, soft directional light, natural shadows, realistic surface texture, no redesign",
+      "category": "Prompts",
+      "favorite": false
+    }
+  ]
+}
