@@ -5,7 +5,6 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -28,10 +27,14 @@ class MainActivity : Activity() {
     private lateinit var store: SnippetStore
     private lateinit var snippetsContainer: LinearLayout
     private lateinit var searchInput: EditText
+    private lateinit var colors: AppColors
     private var snippets: MutableList<Snippet> = mutableListOf()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        colors = resolveAppColors(this)
+        window.statusBarColor = colors.background
+        window.navigationBarColor = colors.background
         store = SnippetStore(this)
         snippets = store.getAll()
         buildUi()
@@ -42,7 +45,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(18), dp(16), dp(12))
-            setBackgroundColor(Color.rgb(250, 250, 250))
+            setBackgroundColor(colors.background)
         }
 
         val header = LinearLayout(this).apply {
@@ -54,12 +57,13 @@ class MainActivity : Activity() {
             text = "Copyboard"
             textSize = 28f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.rgb(25, 25, 25))
+            setTextColor(colors.textPrimary)
         }
 
         val addButton = Button(this).apply {
             text = "+"
             textSize = 22f
+            setTextColor(colors.accent)
             contentDescription = "Snippet hinzufügen"
             setOnClickListener { showEditor(null) }
         }
@@ -76,15 +80,17 @@ class MainActivity : Activity() {
         val helpText = TextView(this).apply {
             text = "Antippen kopiert. Lange drücken bearbeitet. Favoriten erscheinen im Widget."
             textSize = 13f
-            setTextColor(Color.rgb(90, 90, 90))
+            setTextColor(colors.textSecondary)
             setPadding(0, dp(4), 0, dp(10))
         }
 
         searchInput = EditText(this).apply {
             setHint("Suchen …")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
             setSingleLine(true)
             setPadding(dp(12), 0, dp(12), 0)
-            background = roundedBackground(Color.WHITE, stroke = Color.rgb(220, 220, 220))
+            background = roundedBackground(colors.inputSurface, stroke = colors.border)
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -125,7 +131,7 @@ class MainActivity : Activity() {
             snippetsContainer.addView(
                 TextView(this).apply {
                     text = "Nichts gefunden. Zeit für mehr Textbausteine."
-                    setTextColor(Color.rgb(100, 100, 100))
+                    setTextColor(colors.textSecondary)
                     textSize = 16f
                     gravity = Gravity.CENTER
                     setPadding(0, dp(40), 0, 0)
@@ -145,7 +151,7 @@ class MainActivity : Activity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = roundedBackground(Color.WHITE, stroke = Color.rgb(226, 226, 226))
+            background = roundedBackground(colors.surface, stroke = colors.border)
             isClickable = true
             isFocusable = true
             setOnClickListener { copySnippet(snippet) }
@@ -164,20 +170,20 @@ class MainActivity : Activity() {
             text = snippet.title
             textSize = 17f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(Color.rgb(24, 24, 24))
+            setTextColor(colors.textPrimary)
         }
 
         val category = TextView(this).apply {
             text = if (snippet.favorite) "★ ${snippet.category}" else snippet.category
             textSize = 12f
-            setTextColor(Color.rgb(90, 90, 90))
+            setTextColor(colors.textSecondary)
             gravity = Gravity.END
         }
 
         val preview = TextView(this).apply {
             text = snippet.text.replace("\n", " ").let { if (it.length > 140) it.take(140) + "…" else it }
             textSize = 14f
-            setTextColor(Color.rgb(70, 70, 70))
+            setTextColor(colors.textSecondary)
             setPadding(0, dp(8), 0, 0)
         }
 
@@ -201,18 +207,24 @@ class MainActivity : Activity() {
 
         val titleInput = EditText(this).apply {
             setHint("Titel")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
             setSingleLine(true)
             setText(existing?.title.orEmpty())
         }
 
         val categoryInput = EditText(this).apply {
             setHint("Kategorie")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
             setSingleLine(true)
             setText(existing?.category ?: "General")
         }
 
         val textInput = EditText(this).apply {
             setHint("Textbaustein")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
             minLines = 5
             maxLines = 10
             gravity = Gravity.TOP
@@ -221,6 +233,7 @@ class MainActivity : Activity() {
 
         val favoriteBox = CheckBox(this).apply {
             text = "Favorit / im Widget anzeigen"
+            setTextColor(colors.textPrimary)
             isChecked = existing?.favorite ?: false
         }
 
