@@ -6,6 +6,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -18,6 +19,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -31,10 +33,12 @@ import kotlin.math.roundToInt
 class MainActivity : Activity() {
     private lateinit var store: SnippetStore
     private lateinit var snippetsContainer: LinearLayout
+    private lateinit var groupFilterContainer: LinearLayout
     private lateinit var searchInput: EditText
     private lateinit var colors: AppColors
     private var snippets: MutableList<Snippet> = mutableListOf()
     private var importReplaceExisting: Boolean = false
+    private var selectedGroup: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,7 +99,7 @@ class MainActivity : Activity() {
         )
 
         val helpText = TextView(this).apply {
-            text = "Antippen kopiert. Lange drücken bearbeitet. Favoriten erscheinen im Widget."
+            text = "Antippen kopiert. Lange drücken bearbeitet. Gruppen filtern die Liste."
             textSize = 13f
             setTextColor(colors.textSecondary)
             setPadding(0, dp(4), 0, dp(10))
@@ -140,6 +144,16 @@ class MainActivity : Activity() {
             setMargins(dp(8), 0, 0, 0)
         })
 
+        groupFilterContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, dp(8))
+        }
+
+        val groupFilterScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(groupFilterContainer)
+        }
+
         snippetsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -152,15 +166,19 @@ class MainActivity : Activity() {
         root.addView(helpText)
         root.addView(searchInput, LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
         root.addView(backupRow, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        root.addView(groupFilterScroll, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
     }
 
     private fun renderSnippets() {
+        renderGroupFilters()
         snippetsContainer.removeAllViews()
         val query = searchInput.text?.toString()?.trim()?.lowercase().orEmpty()
+        val activeGroup = selectedGroup
         val filtered = snippets
             .sortedWith(compareByDescending<Snippet> { it.favorite }.thenBy { it.category.lowercase() }.thenBy { it.title.lowercase() })
+            .filter { snippet -> activeGroup == null || snippet.category == activeGroup }
             .filter { snippet ->
                 query.isBlank() ||
                     snippet.title.lowercase().contains(query) ||
@@ -171,7 +189,11 @@ class MainActivity : Activity() {
         if (filtered.isEmpty()) {
             snippetsContainer.addView(
                 TextView(this).apply {
-                    text = "Nichts gefunden. Zeit für mehr Textbausteine."
+                    text = if (activeGroup == null) {
+                        "Nichts gefunden. Zeit für mehr Textbausteine."
+                    } else {
+                        "Keine Textbausteine in dieser Gruppe."
+                    }
                     setTextColor(colors.textSecondary)
                     textSize = 16f
                     gravity = Gravity.CENTER
@@ -188,10 +210,53 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun renderGroupFilters() {
+        groupFilterContainer.removeAllViews()
+        val groups = snippets.map { it.category.ifBlank { "General" } }.distinct().sorted()
+        if (selectedGroup != null && selectedGroup !in groups) {
+            selectedGroup = null
+        }
+
+        addGroupFilter("Alle", selectedGroup == null, colors.accent) {
+            selectedGroup = null
+            renderSnippets()
+        }
+
+        groups.forEach { group ->
+            addGroupFilter(group, selectedGroup == group, groupColor(group)) {
+                selectedGroup = group
+                renderSnippets()
+            }
+        }
+    }
+
+    private fun addGroupFilter(label: String, selected: Boolean, markerColor: Int, onClick: () -> Unit) {
+        val backgroundColor = if (selected) markerColor else colors.surface
+        val textColor = if (selected) Color.WHITE else colors.textPrimary
+        val chip = TextView(this).apply {
+            text = label
+            textSize = 13f
+            setTypeface(typeface, if (selected) Typeface.BOLD else Typeface.NORMAL)
+            setTextColor(textColor)
+            setPadding(dp(14), dp(7), dp(14), dp(7))
+            background = roundedBackground(backgroundColor, stroke = if (selected) markerColor else colors.border)
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { onClick() }
+        }
+
+        groupFilterContainer.addView(chip, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(0, 0, dp(8), 0)
+        })
+    }
+
     private fun buildSnippetCard(snippet: Snippet): View {
+        val groupColor = groupColor(snippet.category)
         val card = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            orientation = LinearLayout.HORIZONTAL
             background = roundedBackground(colors.surface, stroke = colors.border)
             isClickable = true
             isFocusable = true
@@ -200,6 +265,15 @@ class MainActivity : Activity() {
                 showEditor(snippet)
                 true
             }
+        }
+
+        val marker = View(this).apply {
+            setBackgroundColor(groupColor)
+        }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(12), dp(14), dp(12))
         }
 
         val titleLine = LinearLayout(this).apply {
@@ -217,7 +291,8 @@ class MainActivity : Activity() {
         val category = TextView(this).apply {
             text = if (snippet.favorite) "★ ${snippet.category}" else snippet.category
             textSize = 12f
-            setTextColor(colors.textSecondary)
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(groupColor)
             gravity = Gravity.END
         }
 
@@ -230,8 +305,10 @@ class MainActivity : Activity() {
 
         titleLine.addView(title, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         titleLine.addView(category, LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        card.addView(titleLine)
-        card.addView(preview)
+        content.addView(titleLine)
+        content.addView(preview)
+        card.addView(marker, LinearLayout.LayoutParams(dp(6), LinearLayout.LayoutParams.MATCH_PARENT))
+        card.addView(content, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
 
         val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
             setMargins(0, dp(12), 0, 0)
@@ -255,7 +332,7 @@ class MainActivity : Activity() {
         }
 
         val categoryInput = EditText(this).apply {
-            setHint("Kategorie")
+            setHint("Gruppe")
             setHintTextColor(colors.textSecondary)
             setTextColor(colors.textPrimary)
             setSingleLine(true)
@@ -389,6 +466,7 @@ class MainActivity : Activity() {
             store.importBackupJson(raw, importReplaceExisting)
         }.onSuccess { count ->
             snippets = store.getAll()
+            selectedGroup = null
             CopyboardWidgetProvider.updateAll(this)
             renderSnippets()
             Toast.makeText(this, "$count Textbausteine wiederhergestellt.", Toast.LENGTH_SHORT).show()
@@ -400,6 +478,20 @@ class MainActivity : Activity() {
     private fun backupFileName(): String {
         val date = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date())
         return "copyboard-backup-$date.json"
+    }
+
+    private fun groupColor(group: String): Int {
+        val palette = intArrayOf(
+            Color.rgb(231, 111, 81),
+            Color.rgb(42, 157, 143),
+            Color.rgb(38, 70, 83),
+            Color.rgb(131, 56, 236),
+            Color.rgb(33, 150, 243),
+            Color.rgb(244, 120, 0),
+            Color.rgb(0, 137, 123),
+            Color.rgb(156, 39, 176)
+        )
+        return palette[Math.floorMod(group.hashCode(), palette.size)]
     }
 
     private fun copySnippet(snippet: Snippet) {
