@@ -17,17 +17,7 @@ class SnippetStore(context: Context) {
         }
 
         return runCatching {
-            val array = JSONArray(raw)
-            MutableList(array.length()) { index ->
-                val obj = array.getJSONObject(index)
-                Snippet(
-                    id = obj.optString("id", UUID.randomUUID().toString()),
-                    title = obj.optString("title", "Untitled"),
-                    text = obj.optString("text", ""),
-                    category = obj.optString("category", "General"),
-                    favorite = obj.optBoolean("favorite", false)
-                )
-            }
+            parseSnippetArray(JSONArray(raw))
         }.getOrElse {
             val defaults = defaultSnippets().toMutableList()
             saveAll(defaults)
@@ -36,18 +26,36 @@ class SnippetStore(context: Context) {
     }
 
     fun saveAll(snippets: List<Snippet>) {
-        val array = JSONArray()
-        snippets.forEach { snippet ->
-            array.put(
-                JSONObject()
-                    .put("id", snippet.id)
-                    .put("title", snippet.title)
-                    .put("text", snippet.text)
-                    .put("category", snippet.category)
-                    .put("favorite", snippet.favorite)
-            )
+        prefs.edit().putString(KEY_SNIPPETS, snippetsToJsonArray(snippets).toString()).apply()
+    }
+
+    fun exportBackupJson(): String {
+        return JSONObject()
+            .put("version", 1)
+            .put("app", "Copyboard")
+            .put("snippets", snippetsToJsonArray(getAll()))
+            .toString(2)
+    }
+
+    fun importBackupJson(raw: String, replaceExisting: Boolean): Int {
+        val imported = parseBackup(raw)
+        val finalList = if (replaceExisting) {
+            imported
+        } else {
+            val existing = getAll()
+            val existingIds = existing.map { it.id }.toMutableSet()
+            val additions = imported.map { snippet ->
+                if (existingIds.add(snippet.id)) {
+                    snippet
+                } else {
+                    snippet.copy(id = UUID.randomUUID().toString())
+                }
+            }
+            existing.apply { addAll(0, additions) }
         }
-        prefs.edit().putString(KEY_SNIPPETS, array.toString()).apply()
+
+        saveAll(finalList)
+        return imported.size
     }
 
     fun upsert(snippet: Snippet) {
@@ -63,6 +71,44 @@ class SnippetStore(context: Context) {
 
     fun delete(id: String) {
         saveAll(getAll().filterNot { it.id == id })
+    }
+
+    private fun parseBackup(raw: String): MutableList<Snippet> {
+        val trimmed = raw.trim()
+        val array = if (trimmed.startsWith("[")) {
+            JSONArray(trimmed)
+        } else {
+            JSONObject(trimmed).getJSONArray("snippets")
+        }
+        return parseSnippetArray(array)
+    }
+
+    private fun parseSnippetArray(array: JSONArray): MutableList<Snippet> {
+        return MutableList(array.length()) { index ->
+            val obj = array.getJSONObject(index)
+            Snippet(
+                id = obj.optString("id", UUID.randomUUID().toString()),
+                title = obj.optString("title", "Untitled"),
+                text = obj.optString("text", ""),
+                category = obj.optString("category", "General"),
+                favorite = obj.optBoolean("favorite", false)
+            )
+        }
+    }
+
+    private fun snippetsToJsonArray(snippets: List<Snippet>): JSONArray {
+        val array = JSONArray()
+        snippets.forEach { snippet ->
+            array.put(
+                JSONObject()
+                    .put("id", snippet.id)
+                    .put("title", snippet.title)
+                    .put("text", snippet.text)
+                    .put("category", snippet.category)
+                    .put("favorite", snippet.favorite)
+            )
+        }
+        return array
     }
 
     private fun defaultSnippets(): List<Snippet> = listOf(
