@@ -691,15 +691,21 @@ class MainActivity : Activity() {
             return
         }
 
-        runGitHubTask(
-            loadingMessage = "Lade von GitHub …",
-            successMessage = null
-        ) {
-            val raw = GitHubSyncClient(config).load()
-            val count = store.importBackupJson(raw, replaceExisting = true)
-            refreshAfterImport()
-            Toast.makeText(this, "$count Textbausteine von GitHub geladen.", Toast.LENGTH_SHORT).show()
-        }
+        Toast.makeText(this, "Lade von GitHub …", Toast.LENGTH_SHORT).show()
+        Thread {
+            val result = runCatching {
+                val raw = GitHubSyncClient(config).load()
+                store.importBackupJson(raw, replaceExisting = true)
+            }
+            runOnUiThread {
+                result.onSuccess { count ->
+                    refreshAfterImport()
+                    Toast.makeText(this, "$count Textbausteine von GitHub geladen.", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(this, "GitHub-Sync fehlgeschlagen.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
     }
 
     private fun gitHubSave() {
@@ -717,15 +723,13 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun runGitHubTask(loadingMessage: String, successMessage: String?, task: () -> Unit) {
+    private fun runGitHubTask(loadingMessage: String, successMessage: String, task: () -> Unit) {
         Toast.makeText(this, loadingMessage, Toast.LENGTH_SHORT).show()
         Thread {
             val result = runCatching { task() }
             runOnUiThread {
                 result.onSuccess {
-                    if (successMessage != null) {
-                        Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
-                    }
+                    Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
                 }.onFailure {
                     Toast.makeText(this, "GitHub-Sync fehlgeschlagen.", Toast.LENGTH_LONG).show()
                 }
