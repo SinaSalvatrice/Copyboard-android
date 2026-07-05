@@ -12,6 +12,7 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
+import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -485,31 +486,41 @@ class MainActivity : Activity() {
     }
 
     private fun showSyncDialog() {
-        val hasSyncFile = getSyncUri() != null
-        val options = if (hasSyncFile) {
-            arrayOf(
-                "Aus Sync-Datei laden",
-                "In Sync-Datei sichern",
-                "Andere Sync-Datei wählen",
-                "Neue Sync-Datei erstellen",
-                "Sync-Verknüpfung entfernen"
-            )
+        val options = mutableListOf<String>()
+        val hasFileSync = getSyncUri() != null
+        val hasGitHubSync = loadGitHubConfig().isComplete()
+
+        if (hasFileSync) {
+            options.add("Datei: laden")
+            options.add("Datei: sichern")
+            options.add("Datei: andere wählen")
+            options.add("Datei: neu erstellen")
+            options.add("Datei: trennen")
         } else {
-            arrayOf(
-                "Neue Sync-Datei erstellen",
-                "Bestehende Sync-Datei wählen"
-            )
+            options.add("Datei: neu erstellen")
+            options.add("Datei: bestehende wählen")
+        }
+
+        options.add("GitHub: einrichten")
+        if (hasGitHubSync) {
+            options.add("GitHub: laden")
+            options.add("GitHub: sichern")
+            options.add("GitHub: trennen")
         }
 
         AlertDialog.Builder(this)
             .setTitle("Synchronisierung")
-            .setItems(options) { _, which ->
+            .setItems(options.toTypedArray()) { _, which ->
                 when (options[which]) {
-                    "Aus Sync-Datei laden" -> confirmSyncLoad()
-                    "In Sync-Datei sichern" -> syncSave()
-                    "Andere Sync-Datei wählen", "Bestehende Sync-Datei wählen" -> startSyncFileOpen()
-                    "Neue Sync-Datei erstellen" -> startSyncFileCreate()
-                    "Sync-Verknüpfung entfernen" -> clearSyncFile()
+                    "Datei: laden" -> confirmSyncLoad()
+                    "Datei: sichern" -> syncSave()
+                    "Datei: andere wählen", "Datei: bestehende wählen" -> startSyncFileOpen()
+                    "Datei: neu erstellen" -> startSyncFileCreate()
+                    "Datei: trennen" -> clearSyncFile()
+                    "GitHub: einrichten" -> showGitHubSetupDialog()
+                    "GitHub: laden" -> confirmGitHubLoad()
+                    "GitHub: sichern" -> gitHubSave()
+                    "GitHub: trennen" -> clearGitHubConfig()
                 }
             }
             .show()
@@ -607,6 +618,157 @@ class MainActivity : Activity() {
         Toast.makeText(this, "Sync-Verknüpfung entfernt.", Toast.LENGTH_SHORT).show()
     }
 
+    private fun showGitHubSetupDialog() {
+        val current = loadGitHubConfig()
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), 0)
+        }
+
+        val ownerInput = syncInput("GitHub Owner", current.owner.ifBlank { "SinaSalvatrice" })
+        val repoInput = syncInput("Repo", current.repo.ifBlank { "copyboard-sync" })
+        val branchInput = syncInput("Branch", current.branch.ifBlank { "main" })
+        val pathInput = syncInput("Dateipfad", current.path.ifBlank { "copyboard-sync.json" })
+        val tokenInput = syncInput("Fine-grained Token", current.token, password = true)
+
+        layout.addView(ownerInput)
+        layout.addView(repoInput)
+        layout.addView(branchInput)
+        layout.addView(pathInput)
+        layout.addView(tokenInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("GitHub-Sync einrichten")
+            .setMessage("Token lokal speichern. Empfohlen: Fine-grained Token nur für dieses Repo mit Contents read/write.")
+            .setView(layout)
+            .setPositiveButton("Speichern") { _, _ ->
+                val config = GitHubSyncConfig(
+                    owner = ownerInput.text.toString().trim(),
+                    repo = repoInput.text.toString().trim(),
+                    branch = branchInput.text.toString().trim().ifBlank { "main" },
+                    path = pathInput.text.toString().trim().ifBlank { "copyboard-sync.json" },
+                    token = tokenInput.text.toString().trim()
+                )
+
+                if (!config.isComplete()) {
+                    Toast.makeText(this, "GitHub-Sync ist unvollständig.", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+
+                saveGitHubConfig(config)
+                Toast.makeText(this, "GitHub-Sync gespeichert.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun syncInput(hint: String, value: String, password: Boolean = false): EditText {
+        return EditText(this).apply {
+            setHint(hint)
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
+            setSingleLine(true)
+            setText(value)
+            if (password) {
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+        }
+    }
+
+    private fun confirmGitHubLoad() {
+        AlertDialog.Builder(this)
+            .setTitle("Von GitHub laden")
+            .setMessage("Die aktuelle Liste wird durch die Datei aus GitHub ersetzt.")
+            .setPositiveButton("Laden") { _, _ -> gitHubLoad() }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun gitHubLoad() {
+        val config = loadGitHubConfig()
+        if (!config.isComplete()) {
+            Toast.makeText(this, "GitHub-Sync ist noch nicht eingerichtet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        Toast.makeText(this, "Lade von GitHub …", Toast.LENGTH_SHORT).show()
+        Thread {
+            val result = runCatching {
+                val raw = GitHubSyncClient(config).load()
+                store.importBackupJson(raw, replaceExisting = true)
+            }
+            runOnUiThread {
+                result.onSuccess { count ->
+                    refreshAfterImport()
+                    Toast.makeText(this, "$count Textbausteine von GitHub geladen.", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(this, "GitHub-Sync fehlgeschlagen.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun gitHubSave() {
+        val config = loadGitHubConfig()
+        if (!config.isComplete()) {
+            Toast.makeText(this, "GitHub-Sync ist noch nicht eingerichtet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        runGitHubTask(
+            loadingMessage = "Sichere nach GitHub …",
+            successMessage = "GitHub-Sync aktualisiert."
+        ) {
+            GitHubSyncClient(config).save(store.exportBackupJson())
+        }
+    }
+
+    private fun runGitHubTask(loadingMessage: String, successMessage: String, task: () -> Unit) {
+        Toast.makeText(this, loadingMessage, Toast.LENGTH_SHORT).show()
+        Thread {
+            val result = runCatching { task() }
+            runOnUiThread {
+                result.onSuccess {
+                    Toast.makeText(this, successMessage, Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(this, "GitHub-Sync fehlgeschlagen.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun loadGitHubConfig(): GitHubSyncConfig {
+        val prefs = syncPrefs()
+        return GitHubSyncConfig(
+            owner = prefs.getString(KEY_GITHUB_OWNER, "").orEmpty(),
+            repo = prefs.getString(KEY_GITHUB_REPO, "").orEmpty(),
+            branch = prefs.getString(KEY_GITHUB_BRANCH, "main").orEmpty(),
+            path = prefs.getString(KEY_GITHUB_PATH, "copyboard-sync.json").orEmpty(),
+            token = prefs.getString(KEY_GITHUB_TOKEN, "").orEmpty()
+        )
+    }
+
+    private fun saveGitHubConfig(config: GitHubSyncConfig) {
+        syncPrefs().edit()
+            .putString(KEY_GITHUB_OWNER, config.owner)
+            .putString(KEY_GITHUB_REPO, config.repo)
+            .putString(KEY_GITHUB_BRANCH, config.branch)
+            .putString(KEY_GITHUB_PATH, config.path)
+            .putString(KEY_GITHUB_TOKEN, config.token)
+            .apply()
+    }
+
+    private fun clearGitHubConfig() {
+        syncPrefs().edit()
+            .remove(KEY_GITHUB_OWNER)
+            .remove(KEY_GITHUB_REPO)
+            .remove(KEY_GITHUB_BRANCH)
+            .remove(KEY_GITHUB_PATH)
+            .remove(KEY_GITHUB_TOKEN)
+            .apply()
+        Toast.makeText(this, "GitHub-Sync entfernt.", Toast.LENGTH_SHORT).show()
+    }
+
     private fun getSyncUri(): Uri? {
         val raw = syncPrefs().getString(KEY_SYNC_URI, null) ?: return null
         return Uri.parse(raw)
@@ -679,5 +841,10 @@ class MainActivity : Activity() {
         private const val REQUEST_OPEN_SYNC_FILE = 1004
         private const val SYNC_PREFS_NAME = "copyboard_sync"
         private const val KEY_SYNC_URI = "sync_file_uri"
+        private const val KEY_GITHUB_OWNER = "github_owner"
+        private const val KEY_GITHUB_REPO = "github_repo"
+        private const val KEY_GITHUB_BRANCH = "github_branch"
+        private const val KEY_GITHUB_PATH = "github_path"
+        private const val KEY_GITHUB_TOKEN = "github_token"
     }
 }
