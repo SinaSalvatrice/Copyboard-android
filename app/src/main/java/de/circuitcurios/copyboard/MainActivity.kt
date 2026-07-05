@@ -5,8 +5,10 @@ import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -20,6 +22,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -29,6 +34,7 @@ class MainActivity : Activity() {
     private lateinit var searchInput: EditText
     private lateinit var colors: AppColors
     private var snippets: MutableList<Snippet> = mutableListOf()
+    private var importReplaceExisting: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +45,17 @@ class MainActivity : Activity() {
         snippets = store.getAll()
         buildUi()
         renderSnippets()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+
+        val uri = data?.data ?: return
+        when (requestCode) {
+            REQUEST_EXPORT_BACKUP -> exportBackup(uri)
+            REQUEST_IMPORT_BACKUP -> importBackup(uri)
+        }
     }
 
     private fun buildUi() {
@@ -100,6 +117,29 @@ class MainActivity : Activity() {
             })
         }
 
+        val backupRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        val exportButton = Button(this).apply {
+            text = "Backup"
+            setTextColor(colors.accent)
+            setOnClickListener { startBackupExport() }
+        }
+
+        val importButton = Button(this).apply {
+            text = "Wiederherstellen"
+            setTextColor(colors.accent)
+            setOnClickListener { showImportModeDialog() }
+        }
+
+        backupRow.addView(exportButton, LinearLayout.LayoutParams(0, dp(46), 1f))
+        backupRow.addView(importButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+
         snippetsContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -111,6 +151,7 @@ class MainActivity : Activity() {
         root.addView(header)
         root.addView(helpText)
         root.addView(searchInput, LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
+        root.addView(backupRow, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
     }
@@ -295,6 +336,72 @@ class MainActivity : Activity() {
         titleInput.requestFocus()
     }
 
+    private fun startBackupExport() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, backupFileName())
+        }
+        startActivityForResult(intent, REQUEST_EXPORT_BACKUP)
+    }
+
+    private fun showImportModeDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Backup wiederherstellen")
+            .setMessage("Willst du deine aktuellen Textbausteine ersetzen oder das Backup hinzufügen?")
+            .setPositiveButton("Ersetzen") { _, _ ->
+                importReplaceExisting = true
+                startBackupImport()
+            }
+            .setNegativeButton("Hinzufügen") { _, _ ->
+                importReplaceExisting = false
+                startBackupImport()
+            }
+            .setNeutralButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun startBackupImport() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+        }
+        startActivityForResult(intent, REQUEST_IMPORT_BACKUP)
+    }
+
+    private fun exportBackup(uri: Uri) {
+        runCatching {
+            contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { writer ->
+                writer.write(store.exportBackupJson())
+            } ?: error("No output stream")
+        }.onSuccess {
+            Toast.makeText(this, "Backup gespeichert.", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "Backup konnte nicht gespeichert werden.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun importBackup(uri: Uri) {
+        runCatching {
+            val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { reader ->
+                reader.readText()
+            } ?: error("No input stream")
+            store.importBackupJson(raw, importReplaceExisting)
+        }.onSuccess { count ->
+            snippets = store.getAll()
+            CopyboardWidgetProvider.updateAll(this)
+            renderSnippets()
+            Toast.makeText(this, "$count Textbausteine wiederhergestellt.", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "Backup konnte nicht gelesen werden.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun backupFileName(): String {
+        val date = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date())
+        return "copyboard-backup-$date.json"
+    }
+
     private fun copySnippet(snippet: Snippet) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText(snippet.title, snippet.text))
@@ -313,4 +420,9 @@ class MainActivity : Activity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
+
+    companion object {
+        private const val REQUEST_EXPORT_BACKUP = 1001
+        private const val REQUEST_IMPORT_BACKUP = 1002
+    }
 }
