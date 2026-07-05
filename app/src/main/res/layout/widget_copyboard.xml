@@ -19,7 +19,7 @@
             android:layout_weight="1"
             android:gravity="center_vertical"
             android:text="Copyboard"
-            android:textColor="#111111"
+            android:textColor="@color/widget_text_primary"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -29,7 +29,7 @@
             android:layout_height="36dp"
             android:gravity="center"
             android:text="+"
-            android:textColor="#111111"
+            android:textColor="@color/widget_text_primary"
             android:textSize="20sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -43,7 +43,8 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:text="Snippet 1"
-        android:textAllCaps="false" />
+        android:textAllCaps="false"
+        android:textColor="@color/widget_text_secondary" />
 
     <Button
         android:id="@+id/widgetSnippet2"
@@ -54,7 +55,8 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:text="Snippet 2"
-        android:textAllCaps="false" />
+        android:textAllCaps="false"
+        android:textColor="@color/widget_text_secondary" />
 
     <Button
         android:id="@+id/widgetSnippet3"
@@ -65,7 +67,8 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:text="Snippet 3"
-        android:textAllCaps="false" />
+        android:textAllCaps="false"
+        android:textColor="@color/widget_text_secondary" />
 
     <Button
         android:id="@+id/widgetSnippet4"
@@ -76,5 +79,6 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:text="Snippet 4"
-        android:textAllCaps="false" />
+        android:textAllCaps="false"
+        android:textColor="@color/widget_text_secondary" />
 </LinearLayout>
