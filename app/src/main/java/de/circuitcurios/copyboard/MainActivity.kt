@@ -50,6 +50,15 @@ class MainActivity : Activity() {
         snippets = store.getAll()
         buildUi()
         renderSnippets()
+        openSnippetFromIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        snippets = store.getAll()
+        renderSnippets()
+        openSnippetFromIntent(intent)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -333,6 +342,14 @@ class MainActivity : Activity() {
         }
         card.layoutParams = lp
         return card
+    }
+
+    private fun openSnippetFromIntent(intent: Intent?) {
+        val snippetId = intent?.getStringExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID) ?: return
+        val snippet = snippets.firstOrNull { it.id == snippetId }
+        if (snippet != null) {
+            showEditor(snippet)
+        }
     }
 
     private fun showEditor(existing: Snippet?) {
