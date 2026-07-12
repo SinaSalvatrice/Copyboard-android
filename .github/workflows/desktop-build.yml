@@ -1,0 +1,66 @@
+name: Desktop Build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows desktop app
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Build Tauri bundle
+        run: npm run tauri:build
+
+      - name: Upload Windows bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: copyboard-windows-bundles
+          path: |
+            src-tauri/target/release/bundle/nsis/*
+            src-tauri/target/release/bundle/msi/*
+
+      - name: Upload Windows executable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: copyboard-windows-exe
+          path: |
+            src-tauri/target/release/*.exe
+
+      - name: Upload frontend dist
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: copyboard-web-dist
+          path: dist/
