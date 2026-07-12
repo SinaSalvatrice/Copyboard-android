@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Copyboard PC Portable</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:#070707; --panel:#111; --panel2:#171717; --line:#2a2a2a; --text:#e9e9e9; --muted:#9a9a9a;
+      --accent:#00a68a; --danger:#c84c4c; --warn:#d69b29; --btn:#242424; --input:#0d0d0d;
+      --shadow: 0 20px 60px rgba(0,0,0,.45);
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    .app { max-width: 1160px; margin: 0 auto; padding: 28px; }
+    header { display:flex; gap:18px; align-items:flex-start; justify-content:space-between; margin-bottom:18px; }
+    h1 { margin:0; font-size:38px; line-height:1; letter-spacing:-.04em; }
+    .sub { color:var(--muted); margin-top:9px; }
+    .topActions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
+    button, .fileLabel {
+      border:1px solid var(--line); background:var(--btn); color:var(--text); padding:10px 14px; border-radius:12px;
+      cursor:pointer; font-weight:700; letter-spacing:.02em; user-select:none; min-height:42px;
+    }
+    button:hover, .fileLabel:hover { border-color:#444; filter:brightness(1.1); }
+    button.primary { background: var(--accent); color:#04110f; border-color: transparent; }
+    button.danger { background:#311616; color:#ffd7d7; border-color:#612323; }
+    button.warn { background:#33250d; color:#ffe2a8; border-color:#704d12; }
+    button.ghost { background:transparent; }
+    input, textarea, select {
+      width:100%; border:1px solid var(--line); background:var(--input); color:var(--text); border-radius:14px; padding:13px 15px;
+      font:inherit; outline:none;
+    }
+    textarea { min-height:160px; resize:vertical; line-height:1.4; }
+    input:focus, textarea:focus, select:focus { border-color:var(--accent); }
+    .grid { display:grid; grid-template-columns: 1fr 330px; gap:18px; }
+    .toolbar { display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:center; margin-bottom:14px; }
+    .filters { display:flex; gap:8px; flex-wrap:wrap; margin: 0 0 14px; }
+    .chip { padding:8px 11px; border-radius:999px; border:1px solid var(--line); background:#111; color:var(--muted); cursor:pointer; font-weight:700; }
+    .chip.active { color:#05110f; background:var(--accent); border-color:transparent; }
+    .list { display:grid; gap:10px; }
+    .snippet {
+      border:1px solid var(--line); background:linear-gradient(180deg, #121212, #0d0d0d); border-radius:18px; padding:16px; cursor:pointer;
+      display:grid; grid-template-columns: 6px 1fr auto; gap:14px; align-items:start;
+    }
+    .snippet:hover { border-color:#494949; }
+    .stripe { width:6px; height:100%; min-height:72px; border-radius:999px; background:var(--accent); opacity:.85; }
+    .sTitle { font-size:18px; font-weight:850; margin-bottom:7px; display:flex; gap:8px; align-items:center; }
+    .sText { color:var(--muted); line-height:1.35; white-space:pre-wrap; word-break:break-word; max-height:74px; overflow:hidden; }
+    .badge { color:var(--accent); font-size:12px; font-weight:800; border:1px solid rgba(0,166,138,.35); padding:5px 8px; border-radius:999px; align-self:start; }
+    .side { display:grid; gap:14px; align-content:start; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:16px; box-shadow: var(--shadow); }
+    .card h2 { font-size:18px; margin:0 0 12px; }
+    .field { margin-bottom:12px; }
+    label { display:block; color:var(--muted); font-size:12px; font-weight:800; margin: 0 0 6px; text-transform:uppercase; letter-spacing:.06em; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .row > * { flex:1; }
+    .toast { position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:#202020; border:1px solid #444; color:var(--text); padding:13px 18px; border-radius:999px; box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:.18s ease; font-weight:800; z-index:50; }
+    .toast.show { opacity:1; bottom:38px; }
+    .modalBackdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.72); z-index:40; align-items:center; justify-content:center; padding:20px; }
+    .modalBackdrop.show { display:flex; }
+    .modal { width:min(760px, 100%); max-height:92vh; overflow:auto; background:#181818; border:1px solid #444; border-radius:22px; padding:20px; box-shadow:var(--shadow); }
+    .modal h2 { margin:0 0 16px; }
+    .hidden { display:none !important; }
+    .small { color:var(--muted); font-size:13px; line-height:1.4; }
+    .kbd { background:#222; border:1px solid #333; border-bottom-width:3px; padding:2px 7px; border-radius:6px; color:#ddd; }
+    .empty { color:var(--muted); border:1px dashed var(--line); padding:28px; border-radius:18px; text-align:center; }
+    @media (max-width: 900px) { .grid { grid-template-columns:1fr; } header { flex-direction:column; } .topActions { justify-content:flex-start; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Copyboard</h1>
+        <div class="sub">PC-Portable: Textbaustein anklicken = direkt kopiert. Läuft ohne Installation im Browser.</div>
+      </div>
+      <div class="topActions">
+        <button class="primary" id="addBtn">+ Snippet</button>
+        <button id="exportBtn">Backup</button>
+        <label class="fileLabel" for="importFile">Restore</label>
+        <input class="hidden" id="importFile" type="file" accept="application/json,.json" />
+        <button id="pullBtn">GitHub Pull</button>
+        <button id="pushBtn">GitHub Push</button>
+        <button class="warn" id="syncBtn">Sync</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section>
+        <div class="toolbar">
+          <input id="search" placeholder="Suchen …  z.B. Etsy, Material, Prompt" autofocus />
+          <button id="clearSearch">×</button>
+        </div>
+        <div class="filters" id="filters"></div>
+        <div class="list" id="list"></div>
+      </section>
+
+      <aside class="side">
+        <div class="card">
+          <h2>GitHub-Sync</h2>
+          <p class="small">Nutzt dieselbe Datei wie deine Android-App: <b>copyboard-sync.json</b>. Token bleibt lokal in diesem Browserprofil.</p>
+          <div class="field"><label>Owner</label><input id="ghOwner" placeholder="SinaSalvatrice" /></div>
+          <div class="field"><label>Repo</label><input id="ghRepo" placeholder="copyboard-sync" /></div>
+          <div class="field"><label>Branch</label><input id="ghBranch" placeholder="main" /></div>
+          <div class="field"><label>Pfad</label><input id="ghPath" placeholder="copyboard-sync.json" /></div>
+          <div class="field"><label>Fine-grained Token</label><input id="ghToken" type="password" placeholder="github_pat_…" /></div>
+          <div class="row"><button id="saveSettings">Speichern</button><button id="clearToken" class="danger">Token löschen</button></div>
+        </div>
+        <div class="card">
+          <h2>Bedienung</h2>
+          <p class="small"><b>Klick</b> auf Karte kopiert den Text. <b>Bearbeiten</b> über den Button in der Karte. Suche filtert live. Backup/Restore ist normales JSON.</p>
+          <p class="small">Nicht für Passwörter/API-Keys benutzen. Zwischenablage bleibt Zwischenablage: praktisch, aber kein Tresor.</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div class="modalBackdrop" id="modalBackdrop">
+    <div class="modal">
+      <h2 id="modalTitle">Snippet</h2>
+      <input type="hidden" id="editId" />
+      <div class="field"><label>Titel</label><input id="snippetTitle" /></div>
+      <div class="row">
+        <div class="field"><label>Kategorie</label><input id="snippetCategory" placeholder="Etsy / Prompts / Schmuck …" /></div>
+        <div class="field"><label>Favorit</label><select id="snippetFav"><option value="false">Nein</option><option value="true">Ja</option></select></div>
+      </div>
+      <div class="field"><label>Text</label><textarea id="snippetText"></textarea></div>
+      <div class="row">
+        <button class="primary" id="saveSnippet">Speichern</button>
+        <button id="cancelSnippet">Abbrechen</button>
+        <button class="danger" id="deleteSnippet">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const LS_SNIPPETS = 'copyboard.pc.snippets.v1';
+const LS_SETTINGS = 'copyboard.pc.github.v1';
+let snippets = [];
+let selectedCategory = 'Alle';
+
+const sample = [
+  {id: crypto.randomUUID(), title:'Etsy Tags - Ring', text:'adjustable ring, aluminum jewelry, handmade metal, industrial style, minimalist, unisex jewelry, nickel free, brushed aluminum, everyday piece, made to order, statement ring', category:'Etsy', favorite:true, updatedAt:new Date().toISOString()},
+  {id: crypto.randomUUID(), title:'Material DE', text:'Nickelfreier, sehr leichter Aluminiumschmuck, von Hand gebogen, flach gearbeitet und mit sichtbarer Oberfläche bewusst nicht perfekt gefertigt.', category:'Schmuck', favorite:true, updatedAt:new Date().toISOString()},
+  {id: crypto.randomUUID(), title:'Material EN', text:'Nickel-free, lightweight aluminum jewelry, shaped, flattened and finished by hand. Each piece keeps small traces of the handmade process.', category:'Jewelry', favorite:true, updatedAt:new Date().toISOString()},
+  {id: crypto.randomUUID(), title:'AI Prompt - Schmuckfoto', text:'product photo of handmade aluminum jewelry, industrial neutral background, soft directional light, natural shadows, realistic surface texture, preserve exact object shape', category:'Prompts', favorite:true, updatedAt:new Date().toISOString()},
+  {id: crypto.randomUUID(), title:'Kundenantwort EN', text:'Thank you so much for your message. I will check this carefully and get back to you as soon as possible.', category:'Customer', favorite:false, updatedAt:new Date().toISOString()}
+];
+
+const $ = id => document.getElementById(id);
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window.__toast); window.__toast=setTimeout(()=>t.classList.remove('show'),1800); }
+function save(){ localStorage.setItem(LS_SNIPPETS, JSON.stringify(snippets)); }
+function load(){
+  try { snippets = JSON.parse(localStorage.getItem(LS_SNIPPETS) || 'null') || sample; }
+  catch { snippets = sample; }
+  save();
+}
+function payload(){ return {app:'Copyboard', schemaVersion:1, exportedAt:new Date().toISOString(), snippets}; }
+function normalizePayload(data){
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.snippets)) return data.snippets;
+  throw new Error('JSON enthält keine snippets-Liste.');
+}
+function renderFilters(){
+  const cats = ['Alle', '★ Favoriten', ...Array.from(new Set(snippets.map(s=>s.category).filter(Boolean))).sort((a,b)=>a.localeCompare(b))];
+  if (!cats.includes(selectedCategory)) selectedCategory='Alle';
+  $('filters').innerHTML = cats.map(c => `<button class="chip ${c===selectedCategory?'active':''}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join('');
+  document.querySelectorAll('.chip').forEach(b => b.onclick = () => { selectedCategory=b.dataset.cat; render(); });
+}
+function filtered(){
+  const q = $('search').value.trim().toLowerCase();
+  return snippets.filter(s => {
+    const catOk = selectedCategory === 'Alle' || (selectedCategory === '★ Favoriten' ? s.favorite : s.category === selectedCategory);
+    const text = `${s.title} ${s.category} ${s.text}`.toLowerCase();
+    return catOk && (!q || text.includes(q));
+  }).sort((a,b) => Number(b.favorite)-Number(a.favorite) || new Date(b.updatedAt)-new Date(a.updatedAt));
+}
+function render(){
+  renderFilters();
+  const items = filtered();
+  if (!items.length) { $('list').innerHTML = `<div class="empty">Nichts gefunden. Neuer Textbaustein? Oben rechts auf <b>+ Snippet</b>.</div>`; return; }
+  $('list').innerHTML = items.map(s => `
+    <article class="snippet" data-id="${s.id}">
+      <div class="stripe"></div>
+      <div>
+        <div class="sTitle">${s.favorite?'★ ':''}${escapeHtml(s.title)}</div>
+        <div class="sText">${escapeHtml(s.text)}</div>
+      </div>
+      <div style="display:grid;gap:8px;justify-items:end">
+        <span class="badge">${escapeHtml(s.category || 'Ohne')}</span>
+        <button class="ghost editBtn" data-id="${s.id}">Bearbeiten</button>
+      </div>
+    </article>`).join('');
+  document.querySelectorAll('.snippet').forEach(card => {
+    card.onclick = e => {
+      if (e.target.classList.contains('editBtn')) return;
+      const s = snippets.find(x=>x.id===card.dataset.id);
+      if (s) copyText(s.text, s.title);
+    };
+  });
+  document.querySelectorAll('.editBtn').forEach(btn => btn.onclick = e => { e.stopPropagation(); openEdit(btn.dataset.id); });
+}
+function escapeHtml(str=''){ return String(str).replace(/[&<>'"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+async function copyText(text, title){
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+    else {
+      const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.left='-9999px'; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    toast(`Kopiert: ${title}`);
+  } catch(err){
+    console.error(err); toast('Kopieren blockiert. Text manuell markieren.');
+  }
+}
+function openEdit(id=null){
+  const s = id ? snippets.find(x=>x.id===id) : null;
+  $('modalTitle').textContent = s ? 'Snippet bearbeiten' : 'Snippet hinzufügen';
+  $('editId').value = s?.id || '';
+  $('snippetTitle').value = s?.title || '';
+  $('snippetCategory').value = s?.category || '';
+  $('snippetFav').value = String(Boolean(s?.favorite));
+  $('snippetText').value = s?.text || '';
+  $('deleteSnippet').classList.toggle('hidden', !s);
+  $('modalBackdrop').classList.add('show');
+  setTimeout(()=>$('snippetTitle').focus(),30);
+}
+function closeEdit(){ $('modalBackdrop').classList.remove('show'); }
+function saveEdit(){
+  const id=$('editId').value;
+  const title=$('snippetTitle').value.trim();
+  const text=$('snippetText').value;
+  const category=$('snippetCategory').value.trim() || 'Allgemein';
+  const favorite=$('snippetFav').value === 'true';
+  if (!title || !text.trim()) { toast('Titel und Text fehlen.'); return; }
+  if (id) {
+    const i=snippets.findIndex(x=>x.id===id);
+    snippets[i] = {...snippets[i], title, text, category, favorite, updatedAt:new Date().toISOString()};
+  } else snippets.unshift({id:crypto.randomUUID(), title, text, category, favorite, updatedAt:new Date().toISOString()});
+  save(); closeEdit(); render(); toast('Gespeichert');
+}
+function deleteEdit(){
+  const id=$('editId').value; if (!id) return;
+  if (!confirm('Diesen Textbaustein löschen?')) return;
+  snippets = snippets.filter(s=>s.id!==id); save(); closeEdit(); render(); toast('Gelöscht');
+}
+function download(filename, text){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type:'application/json'})); a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+function loadSettings(){
+  const def={owner:'SinaSalvatrice', repo:'copyboard-sync', branch:'main', path:'copyboard-sync.json', token:''};
+  let cfg=def; try { cfg={...def, ...(JSON.parse(localStorage.getItem(LS_SETTINGS)||'{}'))}; } catch {}
+  $('ghOwner').value=cfg.owner; $('ghRepo').value=cfg.repo; $('ghBranch').value=cfg.branch; $('ghPath').value=cfg.path; $('ghToken').value=cfg.token;
+}
+function settings(){ return {owner:$('ghOwner').value.trim(), repo:$('ghRepo').value.trim(), branch:$('ghBranch').value.trim() || 'main', path:$('ghPath').value.trim() || 'copyboard-sync.json', token:$('ghToken').value.trim()}; }
+function saveSettings(){ localStorage.setItem(LS_SETTINGS, JSON.stringify(settings())); toast('GitHub-Einstellungen gespeichert'); }
+function utf8ToB64(str){ return btoa(unescape(encodeURIComponent(str))); }
+function b64ToUtf8(str){ return decodeURIComponent(escape(atob(str.replace(/\n/g,'')))); }
+async function ghRequest(method, cfg, body=null){
+  if (!cfg.owner || !cfg.repo || !cfg.token) throw new Error('GitHub-Sync unvollständig: Owner, Repo oder Token fehlt.');
+  const url=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(cfg.path).replace(/%2F/g,'/')}?ref=${encodeURIComponent(cfg.branch)}`;
+  const res=await fetch(url,{method, headers:{'Accept':'application/vnd.github+json','Authorization':`Bearer ${cfg.token}`,'X-GitHub-Api-Version':'2022-11-28'}, body: body ? JSON.stringify(body) : null});
+  const data=await res.json().catch(()=>({}));
+  if (!res.ok && res.status!==404) throw new Error(data.message || `GitHub HTTP ${res.status}`);
+  return {status:res.status,data};
+}
+async function githubPull(){
+  saveSettings(); const cfg=settings(); const r=await ghRequest('GET', cfg);
+  if (r.status===404) throw new Error('Datei existiert noch nicht auf GitHub. Erst Push oder Sync benutzen.');
+  const remote = JSON.parse(b64ToUtf8(r.data.content));
+  snippets = mergeSnippets(snippets, normalizePayload(remote));
+  save(); render(); toast('GitHub Pull fertig');
+}
+async function githubPush(){
+  saveSettings(); const cfg=settings();
+  const current = await ghRequest('GET', cfg);
+  const body = { message:'Update Copyboard sync', content:utf8ToB64(JSON.stringify(payload(), null, 2)), branch:cfg.branch };
+  if (current.status!==404 && current.data.sha) body.sha=current.data.sha;
+  const putUrl=`https://api.github.com/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${encodeURIComponent(cfg.path).replace(/%2F/g,'/')}`;
+  const res=await fetch(putUrl,{method:'PUT', headers:{'Accept':'application/vnd.github+json','Authorization':`Bearer ${cfg.token}`,'X-GitHub-Api-Version':'2022-11-28'}, body:JSON.stringify(body)});
+  const data=await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.message || `GitHub HTTP ${res.status}`);
+  toast('GitHub Push fertig');
+}
+function mergeSnippets(local, remote){
+  const byId = new Map();
+  [...local, ...remote].forEach(s => {
+    if (!s.id) s.id=crypto.randomUUID();
+    const old = byId.get(s.id);
+    if (!old || new Date(s.updatedAt||0) >= new Date(old.updatedAt||0)) byId.set(s.id, {...s, updatedAt:s.updatedAt || new Date().toISOString()});
+  });
+  return Array.from(byId.values());
+}
+async function githubSync(){
+  saveSettings(); const cfg=settings();
+  const r=await ghRequest('GET', cfg);
+  if (r.status!==404) { const remote=JSON.parse(b64ToUtf8(r.data.content)); snippets=mergeSnippets(snippets, normalizePayload(remote)); save(); render(); }
+  await githubPush(); toast('Sync fertig');
+}
+async function wrap(fn){ try { await fn(); } catch(e){ console.error(e); toast(e.message || 'Fehler'); } }
+
+$('addBtn').onclick=()=>openEdit();
+$('cancelSnippet').onclick=closeEdit;
+$('saveSnippet').onclick=saveEdit;
+$('deleteSnippet').onclick=deleteEdit;
+$('modalBackdrop').onclick=e=>{ if(e.target.id==='modalBackdrop') closeEdit(); };
+$('search').oninput=render;
+$('clearSearch').onclick=()=>{ $('search').value=''; render(); };
+$('exportBtn').onclick=()=>download('copyboard-sync.json', JSON.stringify(payload(), null, 2));
+$('importFile').onchange=async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  try { const data=JSON.parse(await file.text()); snippets=mergeSnippets(snippets, normalizePayload(data)); save(); render(); toast('Importiert'); }
+  catch(err){ toast(err.message || 'Import fehlgeschlagen'); }
+  e.target.value='';
+};
+$('saveSettings').onclick=saveSettings;
+$('clearToken').onclick=()=>{ $('ghToken').value=''; saveSettings(); };
+$('pullBtn').onclick=()=>wrap(githubPull);
+$('pushBtn').onclick=()=>wrap(githubPush);
+$('syncBtn').onclick=()=>wrap(githubSync);
+window.addEventListener('keydown', e=>{ if(e.key==='Escape') closeEdit(); if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='n'){ e.preventDefault(); openEdit(); }});
+
+load(); loadSettings(); render();
+</script>
+</body>
+</html>
