@@ -19,10 +19,23 @@ function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
 
 function normalizePreferences(preferences?: Partial<Preferences>): Preferences {
   const themeMode = preferences?.themeMode;
+  const floatingCollapseMode = preferences?.floatingCollapseMode;
+  const floatingAnimation = preferences?.floatingAnimation;
+  const floatingIconScale = preferences?.floatingIconScale;
+  const floatingIconOpacity = preferences?.floatingIconOpacity;
+  const floatingHoverDelayMs = preferences?.floatingHoverDelayMs;
+
   return {
     ...defaultPreferences(),
     ...preferences,
     themeMode: themeMode === 'light' || themeMode === 'dark' || themeMode === 'system' ? themeMode : 'system',
+    floatingCollapseMode: floatingCollapseMode === 'stay-open' || floatingCollapseMode === 'icon' ? floatingCollapseMode : 'icon',
+    floatingAnimation: floatingAnimation === 'vertical' || floatingAnimation === 'horizontal' || floatingAnimation === 'fade'
+      ? floatingAnimation
+      : 'fade',
+    floatingIconScale: typeof floatingIconScale === 'number' ? Math.min(1.8, Math.max(0.7, floatingIconScale)) : 1,
+    floatingIconOpacity: typeof floatingIconOpacity === 'number' ? Math.min(1, Math.max(0.2, floatingIconOpacity)) : 0.72,
+    floatingHoverDelayMs: typeof floatingHoverDelayMs === 'number' ? Math.min(4000, Math.max(0, Math.round(floatingHoverDelayMs))) : 650,
     recentSnippetIds: preferences?.recentSnippetIds ?? [],
     usageCounts: preferences?.usageCounts ?? {},
     floatingPosition: preferences?.floatingPosition ?? null,

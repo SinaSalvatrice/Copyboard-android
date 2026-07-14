@@ -182,6 +182,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (currentLabel !== 'main') {
+      return;
+    }
+
+    const unlistenPromise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) {
+        return;
+      }
+
+      void getCurrentWindow().isMinimized().then((minimized) => {
+        if (minimized) {
+          void invoke('show_floating_window');
+        }
+      });
+    });
+
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, []);
+
+  useEffect(() => {
     if (!data || data.groups.length === 0) {
       return;
     }
@@ -447,6 +469,11 @@ export default function App() {
     settings: GitHubSyncSettings,
     themeMode: 'system' | 'light' | 'dark',
     enableLaunchOnStartup: boolean,
+    floatingCollapseMode: 'icon' | 'stay-open',
+    floatingAnimation: 'fade' | 'vertical' | 'horizontal',
+    floatingIconScale: number,
+    floatingIconOpacity: number,
+    floatingHoverDelayMs: number,
   ) => {
     if (!data) {
       return;
@@ -462,6 +489,11 @@ export default function App() {
       preferences: {
         ...data.preferences,
         themeMode,
+        floatingCollapseMode,
+        floatingAnimation,
+        floatingIconScale,
+        floatingIconOpacity,
+        floatingHoverDelayMs,
       },
     };
 
@@ -720,9 +752,23 @@ export default function App() {
             syncSettings: data.syncSettings,
             themeMode: data.preferences.themeMode,
             autostartEnabled,
+            floatingCollapseMode: data.preferences.floatingCollapseMode,
+            floatingAnimation: data.preferences.floatingAnimation,
+            floatingIconScale: data.preferences.floatingIconScale,
+            floatingIconOpacity: data.preferences.floatingIconOpacity,
+            floatingHoverDelayMs: data.preferences.floatingHoverDelayMs,
           }}
           onSave={(settings) =>
-            void handleSaveSettings(settings.syncSettings, settings.themeMode, settings.autostartEnabled)
+            void handleSaveSettings(
+              settings.syncSettings,
+              settings.themeMode,
+              settings.autostartEnabled,
+              settings.floatingCollapseMode,
+              settings.floatingAnimation,
+              settings.floatingIconScale,
+              settings.floatingIconOpacity,
+              settings.floatingHoverDelayMs,
+            )
           }
           onClose={() => setShowSettings(false)}
         />

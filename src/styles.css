@@ -425,6 +425,11 @@ button {
   padding: 8px;
 }
 
+.floating-shell.is-icon {
+  display: grid;
+  place-items: center;
+}
+
 .floating-pill {
   display: flex;
   align-items: center;
@@ -438,6 +443,22 @@ button {
   box-shadow: 0 16px 30px rgba(0, 0, 0, 0.25);
 }
 
+.floating-icon {
+  width: calc(48px * var(--floating-icon-scale, 1));
+  height: calc(48px * var(--floating-icon-scale, 1));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(18, 24, 33, var(--floating-icon-opacity, 0.72));
+  color: #fff;
+  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+  display: grid;
+  place-items: center;
+  font-size: calc(0.82rem * var(--floating-icon-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: move;
+}
+
 .floating-pill__actions {
   display: flex;
   align-items: center;
@@ -449,6 +470,7 @@ button {
   border-radius: 22px;
   padding: 14px;
   animation: panel-in 180ms ease;
+  transform-origin: top center;
 }
 
 .floating-panel__list {
@@ -467,6 +489,42 @@ button {
   margin-bottom: 4px;
 }
 
+.floating-shell.is-collapsing.animation-fade .floating-pill,
+.floating-shell.is-collapsing.animation-fade .floating-panel {
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.floating-shell.is-expanding.animation-fade .floating-pill,
+.floating-shell.is-expanding.animation-fade .floating-panel,
+.floating-shell.is-icon .floating-icon {
+  animation: floating-fade-in 180ms ease;
+}
+
+.floating-shell.is-collapsing.animation-vertical .floating-pill,
+.floating-shell.is-collapsing.animation-vertical .floating-panel {
+  transform: scaleY(0.1);
+  opacity: 0;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.floating-shell.is-expanding.animation-vertical .floating-pill,
+.floating-shell.is-expanding.animation-vertical .floating-panel {
+  animation: floating-grow-y 180ms ease;
+}
+
+.floating-shell.is-collapsing.animation-horizontal .floating-pill,
+.floating-shell.is-collapsing.animation-horizontal .floating-panel {
+  transform: scaleX(0.1);
+  opacity: 0;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.floating-shell.is-expanding.animation-horizontal .floating-pill,
+.floating-shell.is-expanding.animation-horizontal .floating-panel {
+  animation: floating-grow-x 180ms ease;
+}
+
 @keyframes panel-in {
   from {
     opacity: 0;
@@ -476,6 +534,40 @@ button {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes floating-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes floating-grow-y {
+  from {
+    opacity: 0;
+    transform: scaleY(0.1);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes floating-grow-x {
+  from {
+    opacity: 0;
+    transform: scaleX(0.1);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
   }
 }
 

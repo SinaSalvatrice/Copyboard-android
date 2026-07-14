@@ -25,6 +25,11 @@ export interface Preferences {
   hotkey: string;
   themeMode: 'system' | 'light' | 'dark';
   floatingPinned: boolean;
+  floatingCollapseMode: 'icon' | 'stay-open';
+  floatingAnimation: 'fade' | 'vertical' | 'horizontal';
+  floatingIconScale: number;
+  floatingIconOpacity: number;
+  floatingHoverDelayMs: number;
   floatingPosition: FloatingPosition | null;
   recentSnippetIds: string[];
   usageCounts: Record<string, number>;

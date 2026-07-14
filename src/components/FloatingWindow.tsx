@@ -5,8 +5,14 @@ import type { Preferences, Snippet } from '../types';
 import { SearchBox } from './SearchBox';
 
 const appWindow = getCurrentWindow();
-const COLLAPSED_SIZE = new LogicalSize(120, 36);
 const EXPANDED_SIZE = new LogicalSize(360, 420);
+const FLOATING_ANIMATION_MS = 180;
+const BASE_ICON_SIZE = 48;
+
+function iconSize(scale: number) {
+  const size = Math.round((BASE_ICON_SIZE + 8) * scale);
+  return new LogicalSize(size, size);
+}
 
 interface FloatingWindowProps {
   snippets: Snippet[];
@@ -27,14 +33,51 @@ export function FloatingWindow({
   onPositionChange,
   onOpenMain,
 }: FloatingWindowProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(preferences.floatingCollapseMode === 'stay-open');
   const [search, setSearch] = useState('');
   const timerRef = useRef<number | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const [animationState, setAnimationState] = useState<'idle' | 'expanding' | 'collapsing'>('idle');
+
+  const clearAnimation = () => {
+    if (animationRef.current !== null) {
+      window.clearTimeout(animationRef.current);
+      animationRef.current = null;
+    }
+  };
+
+  const showPanel = () => {
+    clearTimer();
+    clearAnimation();
+    void appWindow.setSize(EXPANDED_SIZE);
+    setExpanded(true);
+    setAnimationState('expanding');
+    animationRef.current = window.setTimeout(() => {
+      setAnimationState('idle');
+      animationRef.current = null;
+    }, FLOATING_ANIMATION_MS);
+  };
+
+  const collapseToIcon = () => {
+    clearTimer();
+    if (preferences.floatingPinned || preferences.floatingCollapseMode === 'stay-open') {
+      return;
+    }
+
+    clearAnimation();
+    setAnimationState('collapsing');
+    animationRef.current = window.setTimeout(() => {
+      setExpanded(false);
+      setAnimationState('idle');
+      animationRef.current = null;
+      void appWindow.setSize(iconSize(preferences.floatingIconScale));
+    }, FLOATING_ANIMATION_MS);
+  };
 
   useEffect(() => {
     void appWindow.setAlwaysOnTop(true);
     void appWindow.setDecorations(false);
-    void appWindow.setSize(COLLAPSED_SIZE);
+    void appWindow.setSize(expanded ? EXPANDED_SIZE : iconSize(preferences.floatingIconScale));
 
     if (preferences.floatingPosition) {
       void appWindow.setPosition(new LogicalPosition(preferences.floatingPosition.x, preferences.floatingPosition.y));
@@ -45,13 +88,13 @@ export function FloatingWindow({
         onPositionChange(payload.x, payload.y);
       }),
       listen('copyboard://expand-floating', () => {
-        setExpanded(true);
+        showPanel();
       }),
     ];
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !preferences.floatingPinned) {
-        setExpanded(false);
+        collapseToIcon();
       }
     };
 
@@ -61,13 +104,21 @@ export function FloatingWindow({
       void Promise.all(unlistenPromises).then((unlisteners) => {
         unlisteners.forEach((unlisten) => unlisten());
       });
+      clearAnimation();
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onPositionChange, preferences.floatingPinned, preferences.floatingPosition]);
+  }, [onPositionChange, preferences.floatingCollapseMode, preferences.floatingIconScale, preferences.floatingPinned, preferences.floatingPosition]);
 
   useEffect(() => {
-    void appWindow.setSize(expanded ? EXPANDED_SIZE : COLLAPSED_SIZE);
-  }, [expanded]);
+    if (preferences.floatingCollapseMode === 'stay-open' && !expanded) {
+      showPanel();
+      return;
+    }
+
+    if (!expanded) {
+      void appWindow.setSize(iconSize(preferences.floatingIconScale));
+    }
+  }, [expanded, preferences.floatingCollapseMode, preferences.floatingIconScale]);
 
   const clearTimer = () => {
     if (timerRef.current !== null) {
@@ -78,13 +129,13 @@ export function FloatingWindow({
 
   const scheduleCollapse = () => {
     clearTimer();
-    if (preferences.floatingPinned) {
+    if (preferences.floatingPinned || preferences.floatingCollapseMode === 'stay-open') {
       return;
     }
 
     timerRef.current = window.setTimeout(() => {
-      setExpanded(false);
-    }, 650);
+      collapseToIcon();
+    }, preferences.floatingHoverDelayMs);
   };
 
   const visible = snippets.filter((snippet) => {
@@ -107,16 +158,20 @@ export function FloatingWindow({
 
   return (
     <div
-      className={`floating-shell${expanded ? ' is-expanded' : ' is-collapsed'}`}
+      className={`floating-shell is-${expanded ? 'expanded' : 'icon'} is-${animationState} animation-${preferences.floatingAnimation}`}
+      style={{
+        '--floating-icon-scale': String(preferences.floatingIconScale),
+        '--floating-icon-opacity': String(preferences.floatingIconOpacity),
+      } as React.CSSProperties}
       onMouseEnter={() => {
-        clearTimer();
-        setExpanded(true);
+        showPanel();
       }}
       onMouseLeave={scheduleCollapse}
     >
-      <div className="floating-pill" data-tauri-drag-region>
-        <span>Copyboard</span>
-        {expanded ? (
+      {expanded ? (
+        <>
+          <div className="floating-pill" data-tauri-drag-region>
+            <span>Copyboard</span>
           <div className="floating-pill__actions">
             <button type="button" className="floating-pill__pin" onClick={onOpenMain}>
               App
@@ -129,11 +184,9 @@ export function FloatingWindow({
               {preferences.floatingPinned ? 'Pinned' : 'Pin'}
             </button>
           </div>
-        ) : null}
-      </div>
+          </div>
 
-      {expanded ? (
-        <div className="floating-panel">
+          <div className="floating-panel">
           <SearchBox value={search} onChange={setSearch} placeholder="Search favorites and recent snippets" />
 
           <section>
@@ -185,6 +238,13 @@ export function FloatingWindow({
               ))}
             </div>
           </section>
+          </div>
+        </>
+      ) : null}
+
+      {!expanded ? (
+        <div className="floating-icon" data-tauri-drag-region title="Open Copyboard floating mode">
+          <span>CB</span>
         </div>
       ) : null}
     </div>

@@ -15,6 +15,7 @@ tauri = { version = "2.11.5", features = ["tray-icon"] }
 tauri-plugin-autostart = "2.3.0"
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-global-shortcut = "2.3.2"
+tauri-plugin-single-instance = "2.3.1"
 tauri-plugin-store = "2.4.3"
 
 [features]

@@ -6,6 +6,10 @@ use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 use tauri_plugin_autostart::MacosLauncher;
 
 fn focus_main_window(app: &AppHandle) -> Result<(), String> {
+    if let Some(floating) = app.get_webview_window("floating") {
+        let _ = floating.hide();
+    }
+
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
@@ -20,6 +24,10 @@ fn focus_main_window(app: &AppHandle) -> Result<(), String> {
 }
 
 fn show_floating(app: &AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.hide();
+    }
+
     let window = app
         .get_webview_window("floating")
         .ok_or_else(|| "Floating window not found".to_string())?;
@@ -37,7 +45,7 @@ fn toggle_floating(app: &AppHandle) -> Result<(), String> {
         .ok_or_else(|| "Floating window not found".to_string())?;
 
     if window.is_visible().map_err(|error| error.to_string())? {
-        window.hide().map_err(|error| error.to_string())?;
+        focus_main_window(app)?;
     } else {
         show_floating(app)?;
     }
@@ -61,6 +69,9 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            let _ = focus_main_window(app);
+        }))
         .invoke_handler(tauri::generate_handler![show_floating_window, show_main_window])
         .setup(|app| {
             let open_item = MenuItemBuilder::with_id("open", "Open Copyboard").build(app)?;

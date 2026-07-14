@@ -5,6 +5,11 @@ interface AppSettingsValue {
   syncSettings: GitHubSyncSettings;
   themeMode: 'system' | 'light' | 'dark';
   autostartEnabled: boolean;
+  floatingCollapseMode: 'icon' | 'stay-open';
+  floatingAnimation: 'fade' | 'vertical' | 'horizontal';
+  floatingIconScale: number;
+  floatingIconOpacity: number;
+  floatingHoverDelayMs: number;
 }
 
 interface AppSettingsModalProps {
@@ -54,6 +59,89 @@ export function AppSettingsModal({ initialValue, onSave, onClose }: AppSettingsM
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
               </select>
+            </label>
+          </section>
+
+          <section className="settings-section">
+            <h3>Floating mode</h3>
+            <label>
+              <span>Collapse behavior</span>
+              <select
+                value={value.floatingCollapseMode}
+                onChange={(event) =>
+                  setValue({
+                    ...value,
+                    floatingCollapseMode: event.target.value as 'icon' | 'stay-open',
+                  })
+                }
+              >
+                <option value="icon">Collapse to icon</option>
+                <option value="stay-open">Stay open</option>
+              </select>
+            </label>
+            <label>
+              <span>Collapse animation</span>
+              <select
+                value={value.floatingAnimation}
+                onChange={(event) =>
+                  setValue({
+                    ...value,
+                    floatingAnimation: event.target.value as 'fade' | 'vertical' | 'horizontal',
+                  })
+                }
+              >
+                <option value="fade">Fade</option>
+                <option value="vertical">Vertical downsizing</option>
+                <option value="horizontal">Horizontal downsizing</option>
+              </select>
+            </label>
+            <label>
+              <span>Hover delay: {value.floatingHoverDelayMs} ms</span>
+              <input
+                type="range"
+                min="0"
+                max="4000"
+                step="50"
+                value={value.floatingHoverDelayMs}
+                onChange={(event) =>
+                  setValue({
+                    ...value,
+                    floatingHoverDelayMs: Number(event.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
+              <span>Icon scale: {value.floatingIconScale.toFixed(2)}x</span>
+              <input
+                type="range"
+                min="0.7"
+                max="1.8"
+                step="0.05"
+                value={value.floatingIconScale}
+                onChange={(event) =>
+                  setValue({
+                    ...value,
+                    floatingIconScale: Number(event.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
+              <span>Icon transparency: {Math.round(value.floatingIconOpacity * 100)}%</span>
+              <input
+                type="range"
+                min="0.2"
+                max="1"
+                step="0.05"
+                value={value.floatingIconOpacity}
+                onChange={(event) =>
+                  setValue({
+                    ...value,
+                    floatingIconOpacity: Number(event.target.value),
+                  })
+                }
+              />
             </label>
           </section>
 
