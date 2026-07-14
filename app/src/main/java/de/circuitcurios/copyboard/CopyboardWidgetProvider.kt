@@ -16,8 +16,35 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action != ACTION_CYCLE_GROUP) {
+            return
+        }
+
+        val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            return
+        }
+
+        cycleGroupForWidget(context, appWidgetId)
+        val manager = AppWidgetManager.getInstance(context)
+        updateWidget(context, manager, appWidgetId)
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val prefs = widgetPrefs(context)
+        val editor = prefs.edit()
+        appWidgetIds.forEach { widgetId ->
+            editor.remove(widgetGroupKey(widgetId))
+        }
+        editor.apply()
+    }
+
     companion object {
         const val ACTION_COPY_SNIPPET = "de.circuitcurios.copyboard.ACTION_COPY_SNIPPET"
+        private const val ACTION_CYCLE_GROUP = "de.circuitcurios.copyboard.ACTION_CYCLE_GROUP"
         const val EXTRA_SNIPPET_ID = "snippet_id"
 
         private val rowIds = intArrayOf(
@@ -66,7 +93,14 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_copyboard)
             val store = SnippetStore(context)
             val all = store.getAll()
-            val snippets = all.filter { it.favorite }.ifEmpty { all }.take(4)
+            val groups = store.getGroups()
+            val activeGroup = resolveGroupForWidget(context, appWidgetId, groups)
+            val inGroup = all.filter { it.category == activeGroup }
+            val snippets = inGroup.filter { it.favorite }
+                .ifEmpty { inGroup }
+                .ifEmpty { all.filter { it.favorite } }
+                .ifEmpty { all }
+                .take(4)
 
             val openIntent = Intent(context, MainActivity::class.java)
             val openPendingIntent = PendingIntent.getActivity(
@@ -77,6 +111,19 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.widgetTitle, openPendingIntent)
             views.setOnClickPendingIntent(R.id.widgetOpenApp, openPendingIntent)
+            views.setTextViewText(R.id.widgetGroupPicker, activeGroup)
+
+            val cycleIntent = Intent(context, CopyboardWidgetProvider::class.java).apply {
+                action = ACTION_CYCLE_GROUP
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val cyclePendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 10_000,
+                cycleIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widgetGroupPicker, cyclePendingIntent)
 
             rowIds.forEachIndexed { index, rowId ->
                 val snippet = snippets.getOrNull(index)
@@ -116,6 +163,40 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
 
             manager.updateAppWidget(appWidgetId, views)
         }
+
+        private fun resolveGroupForWidget(context: Context, appWidgetId: Int, groups: List<String>): String {
+            if (groups.isEmpty()) {
+                return "General"
+            }
+
+            val prefs = widgetPrefs(context)
+            val stored = prefs.getString(widgetGroupKey(appWidgetId), null)
+            if (stored != null && groups.contains(stored)) {
+                return stored
+            }
+
+            val defaultGroup = groups.first()
+            prefs.edit().putString(widgetGroupKey(appWidgetId), defaultGroup).apply()
+            return defaultGroup
+        }
+
+        private fun cycleGroupForWidget(context: Context, appWidgetId: Int) {
+            val groups = SnippetStore(context).getGroups()
+            if (groups.isEmpty()) {
+                return
+            }
+
+            val current = resolveGroupForWidget(context, appWidgetId, groups)
+            val nextIndex = (groups.indexOf(current) + 1).let { if (it >= groups.size) 0 else it }
+            widgetPrefs(context).edit().putString(widgetGroupKey(appWidgetId), groups[nextIndex]).apply()
+        }
+
+        private fun widgetPrefs(context: Context) =
+            context.getSharedPreferences(WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+
+        private fun widgetGroupKey(appWidgetId: Int) = "widget_group_$appWidgetId"
+
+        private const val WIDGET_PREFS_NAME = "copyboard_widget"
 
         private fun String.previewText(): String = replace("\n", " ")
             .replace(Regex("\\s+"), " ")
