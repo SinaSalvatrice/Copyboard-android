@@ -265,3 +265,20 @@ app/build/outputs/apk/debug/app-debug.apk
 - Desktop sync errors are surfaced in the UI, including token problems, missing repo/file, permission issues, network failures, and invalid JSON.
 - The current desktop token storage is local, not hardcoded, and intentionally encapsulated so secure storage can be added later.
 - The desktop and floating windows share the same stored snippet data and synchronize through the Tauri store plus a local broadcast channel.
+
+## patch
+
+-the following steps are to do, they apply on both, android and desktop app, as far as reasonable
+
+- add dark mode
+- add a button in floating mode to return to app
+- remove the terminal window, tray in tray
+
+## add settings menu
+
+- in this menu, wich is accessed over a button, are following functions:
+
+- autostart
+- git sync
+- dark mode
+- make some useful suggestions
