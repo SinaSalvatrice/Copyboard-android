@@ -1,17 +1,17 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   font-family: 'Segoe UI Variable', 'Aptos', 'Trebuchet MS', sans-serif;
-  --bg: #f4eee1;
-  --bg-accent: #e5dac1;
-  --panel: rgba(255, 251, 245, 0.85);
-  --panel-strong: #fffaf1;
-  --line: rgba(69, 60, 44, 0.14);
-  --text: #2c2419;
-  --muted: #746754;
-  --accent: #17624f;
-  --accent-soft: #d9efe6;
-  --danger: #9b3d34;
-  --shadow: 0 24px 60px rgba(57, 43, 24, 0.12);
+  --bg: #0f141b;
+  --bg-accent: #151d28;
+  --panel: rgba(24, 33, 45, 0.88);
+  --panel-strong: #1c2736;
+  --line: rgba(169, 190, 215, 0.18);
+  --text: #e7edf5;
+  --muted: #a1afc1;
+  --accent: #3fcb9f;
+  --accent-soft: #1f3a35;
+  --danger: #ff867a;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -23,8 +23,8 @@ body {
   min-height: 100vh;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.7), transparent 28%),
-    linear-gradient(135deg, #efe3cf 0%, #f7f1e6 46%, #ebe0ca 100%);
+    radial-gradient(circle at top left, rgba(63, 203, 159, 0.16), transparent 35%),
+    linear-gradient(135deg, #0f141b 0%, #131a24 46%, #171f2b 100%);
 }
 
 button,
@@ -51,7 +51,7 @@ button {
 .sidebar {
   padding: 28px;
   border-right: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 251, 245, 0.94), rgba(233, 223, 203, 0.94));
+  background: linear-gradient(180deg, rgba(19, 27, 38, 0.96), rgba(16, 23, 33, 0.96));
   backdrop-filter: blur(12px);
 }
 
@@ -95,7 +95,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(20, 29, 40, 0.82);
   color: var(--text);
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
 }
@@ -132,7 +132,7 @@ button {
 .modal-panel,
 .floating-panel {
   background: var(--panel);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(153, 177, 208, 0.2);
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
 }
@@ -173,7 +173,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 13px 14px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(16, 24, 34, 0.95);
   color: var(--text);
 }
 
@@ -223,7 +223,7 @@ button {
 
 .snippet-card--selected {
   border-color: var(--accent);
-  box-shadow: 0 16px 30px rgba(23, 98, 79, 0.12);
+  box-shadow: 0 16px 30px rgba(63, 203, 159, 0.25);
 }
 
 .snippet-card__header,
@@ -290,7 +290,7 @@ button {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(44, 36, 25, 0.3);
+  background: rgba(7, 10, 16, 0.66);
 }
 
 .modal-panel {
