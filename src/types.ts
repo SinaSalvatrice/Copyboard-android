@@ -23,6 +23,7 @@ export interface FloatingPosition {
 
 export interface Preferences {
   hotkey: string;
+  themeMode: 'system' | 'light' | 'dark';
   floatingPinned: boolean;
   floatingPosition: FloatingPosition | null;
   recentSnippetIds: string[];

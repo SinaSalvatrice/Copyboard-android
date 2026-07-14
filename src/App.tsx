@@ -3,9 +3,10 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart';
 import { isRegistered, register, unregister } from '@tauri-apps/plugin-global-shortcut';
 import { FloatingWindow } from './components/FloatingWindow';
-import { GitHubSyncSettingsModal } from './components/GitHubSyncSettings';
+import { AppSettingsModal } from './components/GitHubSyncSettings';
 import { SearchBox } from './components/SearchBox';
 import { SnippetEditor } from './components/SnippetEditor';
 import { SnippetList } from './components/SnippetList';
@@ -62,6 +63,14 @@ function toTauriShortcut(hotkey: string) {
   return hotkey.replace(/^Ctrl/i, 'CommandOrControl');
 }
 
+function resolveTheme(mode: 'system' | 'light' | 'dark') {
+  if (mode !== 'system') {
+    return mode;
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export default function App() {
   const [data, setData] = useState<StoredData | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -71,6 +80,7 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
 
   useEffect(() => {
     void loadStoredData().then((loaded) => {
@@ -126,6 +136,41 @@ export default function App() {
       void unregister(hotkey);
     };
   }, [data]);
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    const apply = () => {
+      const theme = resolveTheme(data.preferences.themeMode);
+      document.documentElement.dataset.theme = theme;
+    };
+
+    apply();
+
+    if (data.preferences.themeMode !== 'system') {
+      return;
+    }
+
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const listener = () => apply();
+    query.addEventListener('change', listener);
+
+    return () => {
+      query.removeEventListener('change', listener);
+    };
+  }, [data]);
+
+  useEffect(() => {
+    if (currentLabel !== 'main') {
+      return;
+    }
+
+    void isAutostartEnabled()
+      .then((enabled) => setAutostartEnabled(enabled))
+      .catch(() => setStatus('Autostart state is unavailable.'));
+  }, []);
 
   const persist = async (nextData: StoredData) => {
     setData(nextData);
@@ -194,7 +239,11 @@ export default function App() {
     setEditorSnippet(createEmptySnippet());
   };
 
-  const handleSaveSettings = async (settings: GitHubSyncSettings) => {
+  const handleSaveSettings = async (
+    settings: GitHubSyncSettings,
+    themeMode: 'system' | 'light' | 'dark',
+    enableLaunchOnStartup: boolean,
+  ) => {
     if (!data) {
       return;
     }
@@ -206,10 +255,26 @@ export default function App() {
         branch: settings.branch || 'main',
         path: settings.path || 'copyboard-sync.json',
       },
+      preferences: {
+        ...data.preferences,
+        themeMode,
+      },
     };
+
+    try {
+      if (enableLaunchOnStartup) {
+        await enableAutostart();
+      } else {
+        await disableAutostart();
+      }
+      setAutostartEnabled(enableLaunchOnStartup);
+    } catch {
+      setStatus('Settings saved, but autostart could not be updated.');
+    }
+
     await persist(nextData);
     setShowSettings(false);
-    setStatus('GitHub settings saved locally.');
+    setStatus('Settings saved.');
   };
 
   const ensureSyncReady = () => {
@@ -313,6 +378,7 @@ export default function App() {
         onCopy={handleCopy}
         onPinChange={handleFloatingPin}
         onPositionChange={handleFloatingPosition}
+        onOpenMain={() => invoke('show_main_window')}
       />
     );
   }
@@ -350,7 +416,7 @@ export default function App() {
           <SearchBox value={search} onChange={setSearch} placeholder="Search title, text, or category" />
           <div className="toolbar__actions">
             <button type="button" className="ghost-button" onClick={handleNew}>New snippet</button>
-            <button type="button" className="ghost-button" onClick={() => setShowSettings(true)}>GitHub settings</button>
+            <button type="button" className="ghost-button" onClick={() => setShowSettings(true)}>Settings</button>
             <button type="button" className="ghost-button" onClick={handlePull}>Pull</button>
             <button type="button" className="ghost-button" onClick={handlePush}>Push</button>
             <button type="button" className="primary-button" onClick={() => void handleSync()}>Sync</button>
@@ -390,9 +456,15 @@ export default function App() {
       </main>
 
       {showSettings ? (
-        <GitHubSyncSettingsModal
-          initialValue={data.syncSettings}
-          onSave={(settings) => void handleSaveSettings(settings)}
+        <AppSettingsModal
+          initialValue={{
+            syncSettings: data.syncSettings,
+            themeMode: data.preferences.themeMode,
+            autostartEnabled,
+          }}
+          onSave={(settings) =>
+            void handleSaveSettings(settings.syncSettings, settings.themeMode, settings.autostartEnabled)
+          }
           onClose={() => setShowSettings(false)}
         />
       ) : null}

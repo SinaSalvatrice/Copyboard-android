@@ -15,6 +15,7 @@ interface FloatingWindowProps {
   onCopy: (snippet: Snippet) => Promise<void>;
   onPinChange: (pinned: boolean) => void;
   onPositionChange: (x: number, y: number) => void;
+  onOpenMain: () => void;
 }
 
 export function FloatingWindow({
@@ -24,6 +25,7 @@ export function FloatingWindow({
   onCopy,
   onPinChange,
   onPositionChange,
+  onOpenMain,
 }: FloatingWindowProps) {
   const [expanded, setExpanded] = useState(false);
   const [search, setSearch] = useState('');
@@ -115,13 +117,18 @@ export function FloatingWindow({
       <div className="floating-pill" data-tauri-drag-region>
         <span>Copyboard</span>
         {expanded ? (
-          <button
-            type="button"
-            className={`floating-pill__pin${preferences.floatingPinned ? ' is-active' : ''}`}
-            onClick={() => onPinChange(!preferences.floatingPinned)}
-          >
-            {preferences.floatingPinned ? 'Pinned' : 'Pin'}
-          </button>
+          <div className="floating-pill__actions">
+            <button type="button" className="floating-pill__pin" onClick={onOpenMain}>
+              App
+            </button>
+            <button
+              type="button"
+              className={`floating-pill__pin${preferences.floatingPinned ? ' is-active' : ''}`}
+              onClick={() => onPinChange(!preferences.floatingPinned)}
+            >
+              {preferences.floatingPinned ? 'Pinned' : 'Pin'}
+            </button>
+          </div>
         ) : null}
       </div>
 

@@ -1,8 +1,11 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 
-fn show_main_window(app: &AppHandle) -> Result<(), String> {
+fn focus_main_window(app: &AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
@@ -47,12 +50,18 @@ fn show_floating_window(app: AppHandle) -> Result<(), String> {
     show_floating(&app)
 }
 
+#[tauri::command]
+fn show_main_window(app: AppHandle) -> Result<(), String> {
+    focus_main_window(&app)
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![show_floating_window])
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .invoke_handler(tauri::generate_handler![show_floating_window, show_main_window])
         .setup(|app| {
             let open_item = MenuItemBuilder::with_id("open", "Open Copyboard").build(app)?;
             let floating_item = MenuItemBuilder::with_id("floating", "Show/hide floating mode").build(app)?;
@@ -74,7 +83,7 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(move |_, event| match event.id.as_ref() {
                     "open" => {
-                        let _ = show_main_window(&handle);
+                        let _ = focus_main_window(&handle);
                     }
                     "floating" => {
                         let _ = toggle_floating(&handle);

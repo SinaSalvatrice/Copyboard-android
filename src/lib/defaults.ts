@@ -17,6 +17,7 @@ export function defaultSyncSettings(): GitHubSyncSettings {
 export function defaultPreferences(): Preferences {
   return {
     hotkey: 'Ctrl+Alt+C',
+    themeMode: 'system',
     floatingPinned: false,
     floatingPosition: null,
     recentSnippetIds: [],

@@ -18,9 +18,11 @@ function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
 }
 
 function normalizePreferences(preferences?: Partial<Preferences>): Preferences {
+  const themeMode = preferences?.themeMode;
   return {
     ...defaultPreferences(),
     ...preferences,
+    themeMode: themeMode === 'light' || themeMode === 'dark' || themeMode === 'system' ? themeMode : 'system',
     recentSnippetIds: preferences?.recentSnippetIds ?? [],
     usageCounts: preferences?.usageCounts ?? {},
     floatingPosition: preferences?.floatingPosition ?? null,
