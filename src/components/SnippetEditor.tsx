@@ -2,13 +2,14 @@ import type { Snippet } from '../types';
 
 interface SnippetEditorProps {
   snippet: Snippet;
+  groups: string[];
   onChange: (snippet: Snippet) => void;
   onSave: () => void;
   onDelete: () => void;
   onNew: () => void;
 }
 
-export function SnippetEditor({ snippet, onChange, onSave, onDelete, onNew }: SnippetEditorProps) {
+export function SnippetEditor({ snippet, groups, onChange, onSave, onDelete, onNew }: SnippetEditorProps) {
   return (
     <section className="editor-panel">
       <div className="editor-panel__header">
@@ -30,11 +31,17 @@ export function SnippetEditor({ snippet, onChange, onSave, onDelete, onNew }: Sn
       </label>
 
       <label>
-        <span>Category</span>
-        <input
+        <span>Group</span>
+        <select
           value={snippet.category}
           onChange={(event) => onChange({ ...snippet, category: event.target.value })}
-        />
+        >
+          {groups.map((group) => (
+            <option key={group} value={group}>
+              {group}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label>

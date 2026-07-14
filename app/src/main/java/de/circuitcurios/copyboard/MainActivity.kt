@@ -23,6 +23,8 @@ import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.ArrayAdapter
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
@@ -38,6 +40,7 @@ class MainActivity : Activity() {
     private lateinit var searchInput: EditText
     private lateinit var colors: AppColors
     private var snippets: MutableList<Snippet> = mutableListOf()
+    private var groups: MutableList<String> = mutableListOf()
     private var importReplaceExisting: Boolean = false
     private var selectedGroup: String? = null
 
@@ -48,6 +51,7 @@ class MainActivity : Activity() {
         window.navigationBarColor = colors.background
         store = SnippetStore(this)
         snippets = store.getAll()
+        groups = store.getGroups()
         buildUi()
         renderSnippets()
         openSnippetFromIntent(intent)
@@ -57,6 +61,7 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         snippets = store.getAll()
+        groups = store.getGroups()
         renderSnippets()
         openSnippetFromIntent(intent)
     }
@@ -163,11 +168,20 @@ class MainActivity : Activity() {
             setOnClickListener { showSyncDialog() }
         }
 
+        val groupsButton = Button(this).apply {
+            text = "Groups"
+            setTextColor(colors.accent)
+            setOnClickListener { showGroupManagementDialog() }
+        }
+
         actionRow.addView(exportButton, LinearLayout.LayoutParams(0, dp(46), 1f))
         actionRow.addView(importButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
             setMargins(dp(8), 0, 0, 0)
         })
         actionRow.addView(syncButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+        actionRow.addView(groupsButton, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
             setMargins(dp(8), 0, 0, 0)
         })
 
@@ -239,7 +253,6 @@ class MainActivity : Activity() {
 
     private fun renderGroupFilters() {
         groupFilterContainer.removeAllViews()
-        val groups = snippets.map { it.category.ifBlank { "General" } }.distinct().sorted()
         if (selectedGroup != null && selectedGroup !in groups) {
             selectedGroup = null
         }
@@ -366,12 +379,12 @@ class MainActivity : Activity() {
             setText(existing?.title.orEmpty())
         }
 
-        val categoryInput = EditText(this).apply {
-            setHint("Gruppe")
-            setHintTextColor(colors.textSecondary)
-            setTextColor(colors.textPrimary)
-            setSingleLine(true)
-            setText(existing?.category ?: "General")
+        val groupOptions = groups.ifEmpty { mutableListOf("General") }
+        val categorySpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, groupOptions)
+            val initialGroup = existing?.category ?: groupOptions.first()
+            val initialIndex = groupOptions.indexOf(initialGroup).let { if (it >= 0) it else 0 }
+            setSelection(initialIndex)
         }
 
         val textInput = EditText(this).apply {
@@ -391,7 +404,7 @@ class MainActivity : Activity() {
         }
 
         layout.addView(titleInput)
-        layout.addView(categoryInput)
+        layout.addView(categorySpinner)
         layout.addView(textInput)
         layout.addView(favoriteBox)
 
@@ -411,7 +424,7 @@ class MainActivity : Activity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val title = titleInput.text.toString().trim()
                 val text = textInput.text.toString()
-                val category = categoryInput.text.toString().trim().ifBlank { "General" }
+                val category = categorySpinner.selectedItem?.toString().orEmpty().ifBlank { "General" }
 
                 if (title.isBlank() || text.isBlank()) {
                     Toast.makeText(this, "Titel und Text dürfen nicht leer sein.", Toast.LENGTH_SHORT).show()
@@ -427,6 +440,7 @@ class MainActivity : Activity() {
                 )
                 store.upsert(snippet)
                 snippets = store.getAll()
+                groups = store.getGroups()
                 CopyboardWidgetProvider.updateAll(this)
                 hideKeyboard(textInput)
                 renderSnippets()
@@ -437,6 +451,7 @@ class MainActivity : Activity() {
                 existing?.let { snippet ->
                     store.delete(snippet.id)
                     snippets = store.getAll()
+                    groups = store.getGroups()
                     CopyboardWidgetProvider.updateAll(this)
                     renderSnippets()
                 }
@@ -471,6 +486,237 @@ class MainActivity : Activity() {
             }
             .setNeutralButton("Abbrechen", null)
             .show()
+    }
+
+    private fun showGroupManagementDialog() {
+        val options = mutableListOf<String>()
+        options.add("Neue Gruppe erstellen")
+        options.add("Gruppe umbenennen")
+        options.add("Textbausteine verschieben")
+        groups.filter { it != "General" }.forEach { group ->
+            options.add("Gruppe löschen: $group")
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Gruppen verwalten")
+            .setItems(options.toTypedArray()) { _, which ->
+                val selected = options[which]
+                if (selected == "Neue Gruppe erstellen") {
+                    showCreateGroupDialog()
+                } else if (selected == "Gruppe umbenennen") {
+                    showRenameGroupDialog()
+                } else if (selected == "Textbausteine verschieben") {
+                    showMoveSnippetsDialog()
+                } else {
+                    val group = selected.removePrefix("Gruppe löschen: ").trim()
+                    deleteGroup(group)
+                }
+            }
+            .setNegativeButton("Schließen", null)
+            .show()
+    }
+
+    private fun showCreateGroupDialog() {
+        val input = EditText(this).apply {
+            setHint("Gruppenname")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
+            setSingleLine(true)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Neue Gruppe")
+            .setView(input)
+            .setPositiveButton("Erstellen") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isBlank()) {
+                    Toast.makeText(this, "Gruppenname fehlt.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (groups.any { it.equals(name, ignoreCase = true) }) {
+                    Toast.makeText(this, "Gruppe existiert bereits.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                groups.add(name)
+                groups = groups.distinct().sorted().toMutableList()
+                store.saveGroups(groups)
+                renderSnippets()
+                Toast.makeText(this, "Gruppe erstellt.", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun showRenameGroupDialog() {
+        val renameableGroups = groups.filter { it != "General" }
+        if (renameableGroups.isEmpty()) {
+            Toast.makeText(this, "Keine Gruppe zum Umbenennen vorhanden.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), 0)
+        }
+
+        val sourceSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, renameableGroups)
+        }
+
+        val targetInput = EditText(this).apply {
+            setHint("Neuer Gruppenname")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
+            setSingleLine(true)
+        }
+
+        layout.addView(sourceSpinner)
+        layout.addView(targetInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("Gruppe umbenennen")
+            .setView(layout)
+            .setPositiveButton("Speichern") { _, _ ->
+                val source = sourceSpinner.selectedItem?.toString().orEmpty()
+                val target = targetInput.text.toString().trim()
+                renameGroup(source, target)
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun renameGroup(source: String, target: String) {
+        if (source.isBlank()) {
+            Toast.makeText(this, "Keine Gruppe ausgewählt.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (target.isBlank()) {
+            Toast.makeText(this, "Neuer Gruppenname fehlt.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (source.equals(target, ignoreCase = true)) {
+            Toast.makeText(this, "Name ist unverändert.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (groups.any { it.equals(target, ignoreCase = true) }) {
+            Toast.makeText(this, "Zielgruppe existiert bereits.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val updatedSnippets = snippets.map { snippet ->
+            if (snippet.category == source) {
+                snippet.copy(category = target)
+            } else {
+                snippet
+            }
+        }
+
+        groups = groups.map { if (it == source) target else it }.distinctBy { it.lowercase() }.sorted().toMutableList()
+        store.saveGroups(groups)
+        store.saveAll(updatedSnippets)
+        snippets = store.getAll()
+        groups = store.getGroups()
+        if (selectedGroup == source) {
+            selectedGroup = target
+        }
+        renderSnippets()
+        Toast.makeText(this, "Gruppe umbenannt.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showMoveSnippetsDialog() {
+        if (groups.size < 2) {
+            Toast.makeText(this, "Mindestens zwei Gruppen nötig.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), 0)
+        }
+
+        val sourceSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, groups)
+        }
+
+        val targetSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, groups)
+            if (groups.size > 1) {
+                setSelection(1)
+            }
+        }
+
+        layout.addView(sourceSpinner)
+        layout.addView(targetSpinner)
+
+        AlertDialog.Builder(this)
+            .setTitle("Textbausteine verschieben")
+            .setView(layout)
+            .setPositiveButton("Verschieben") { _, _ ->
+                val source = sourceSpinner.selectedItem?.toString().orEmpty()
+                val target = targetSpinner.selectedItem?.toString().orEmpty()
+                moveSnippetsBetweenGroups(source, target)
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun moveSnippetsBetweenGroups(source: String, target: String) {
+        if (source.isBlank() || target.isBlank()) {
+            Toast.makeText(this, "Quelle und Ziel wählen.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (source == target) {
+            Toast.makeText(this, "Quelle und Ziel dürfen nicht gleich sein.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val affected = snippets.count { it.category == source }
+        if (affected == 0) {
+            Toast.makeText(this, "Keine Textbausteine zum Verschieben.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val updatedSnippets = snippets.map { snippet ->
+            if (snippet.category == source) {
+                snippet.copy(category = target)
+            } else {
+                snippet
+            }
+        }
+
+        store.saveAll(updatedSnippets)
+        snippets = store.getAll()
+        groups = store.getGroups()
+        if (selectedGroup == source) {
+            selectedGroup = target
+        }
+        renderSnippets()
+        Toast.makeText(this, "$affected Textbausteine verschoben.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun deleteGroup(group: String) {
+        if (group == "General") {
+            Toast.makeText(this, "General kann nicht gelöscht werden.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (snippets.any { it.category == group }) {
+            Toast.makeText(this, "Gruppe wird noch verwendet.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        groups = groups.filter { it != group }.toMutableList()
+        store.saveGroups(groups)
+        if (selectedGroup == group) {
+            selectedGroup = null
+        }
+        renderSnippets()
+        Toast.makeText(this, "Gruppe gelöscht.", Toast.LENGTH_SHORT).show()
     }
 
     private fun startBackupImport() {
@@ -808,6 +1054,7 @@ class MainActivity : Activity() {
 
     private fun refreshAfterImport() {
         snippets = store.getAll()
+        groups = store.getGroups()
         selectedGroup = null
         CopyboardWidgetProvider.updateAll(this)
         renderSnippets()

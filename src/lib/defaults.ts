@@ -71,12 +71,17 @@ export function defaultSnippets(): Snippet[] {
   ];
 }
 
+export function defaultGroups(): string[] {
+  return Array.from(new Set(defaultSnippets().map((snippet) => snippet.category))).sort((left, right) => left.localeCompare(right));
+}
+
 export function defaultStoredData(): StoredData {
   const now = timestamp();
   return {
     version: 1,
     updatedAt: now,
     snippets: defaultSnippets(),
+    groups: defaultGroups(),
     syncSettings: defaultSyncSettings(),
     preferences: defaultPreferences(),
   };

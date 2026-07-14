@@ -71,6 +71,10 @@ function resolveTheme(mode: 'system' | 'light' | 'dark') {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function normalizeGroupName(value: string) {
+  return value.trim();
+}
+
 export default function App() {
   const [data, setData] = useState<StoredData | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -81,6 +85,11 @@ export default function App() {
   const [status, setStatus] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [renameFromGroup, setRenameFromGroup] = useState('');
+  const [renameToGroup, setRenameToGroup] = useState('');
+  const [moveFromGroup, setMoveFromGroup] = useState('');
+  const [moveToGroup, setMoveToGroup] = useState('');
 
   useEffect(() => {
     void loadStoredData().then((loaded) => {
@@ -172,6 +181,22 @@ export default function App() {
       .catch(() => setStatus('Autostart state is unavailable.'));
   }, []);
 
+  useEffect(() => {
+    if (!data || data.groups.length === 0) {
+      return;
+    }
+
+    setRenameFromGroup((current) => (data.groups.includes(current) ? current : data.groups[0]));
+    setMoveFromGroup((current) => (data.groups.includes(current) ? current : data.groups[0]));
+    setMoveToGroup((current) => {
+      if (data.groups.includes(current)) {
+        return current;
+      }
+
+      return data.groups[1] ?? data.groups[0];
+    });
+  }, [data]);
+
   const persist = async (nextData: StoredData) => {
     setData(nextData);
     await saveStoredData(nextData);
@@ -204,14 +229,22 @@ export default function App() {
       return;
     }
 
-    const nextSnippets = upsertSnippet(data.snippets, editorSnippet);
+    const validCategory = data.groups.includes(editorSnippet.category)
+      ? editorSnippet.category
+      : (data.groups[0] ?? 'General');
+    const sanitizedSnippet = {
+      ...editorSnippet,
+      category: validCategory,
+    };
+
+    const nextSnippets = upsertSnippet(data.snippets, sanitizedSnippet);
     const nextData = {
       ...data,
       snippets: sortSnippets(nextSnippets),
     };
     await persist(nextData);
     setStatus('Snippet saved.');
-    const saved = nextData.snippets.find((snippet) => snippet.id === editorSnippet.id);
+    const saved = nextData.snippets.find((snippet) => snippet.id === sanitizedSnippet.id);
     if (saved) {
       selectSnippet(saved);
     }
@@ -236,7 +269,178 @@ export default function App() {
 
   const handleNew = () => {
     setSelectedId(null);
-    setEditorSnippet(createEmptySnippet());
+    const draft = createEmptySnippet();
+    setEditorSnippet({
+      ...draft,
+      category: data?.groups[0] ?? 'General',
+    });
+  };
+
+  const handleCreateGroup = async () => {
+    if (!data) {
+      return;
+    }
+
+    const candidate = normalizeGroupName(newGroupName);
+    if (!candidate) {
+      setStatus('Group name is required.');
+      return;
+    }
+
+    if (data.groups.some((group) => group.toLowerCase() === candidate.toLowerCase())) {
+      setStatus('Group already exists.');
+      return;
+    }
+
+    const nextGroups = [...data.groups, candidate].sort((left, right) => left.localeCompare(right));
+    const nextData = {
+      ...data,
+      groups: nextGroups,
+    };
+
+    await persist(nextData);
+    setEditorSnippet((current) => ({
+      ...current,
+      category: selectedId ? current.category : candidate,
+    }));
+    setNewGroupName('');
+    setStatus(`Group "${candidate}" created.`);
+  };
+
+  const handleDeleteGroup = async (group: string) => {
+    if (!data) {
+      return;
+    }
+
+    if (data.groups.length <= 1) {
+      setStatus('At least one group is required.');
+      return;
+    }
+
+    if (data.snippets.some((snippet) => snippet.category === group)) {
+      setStatus('Group is in use. Move snippets before deleting it.');
+      return;
+    }
+
+    const nextGroups = data.groups.filter((item) => item !== group);
+    const nextDefaultGroup = nextGroups[0] ?? 'General';
+    const nextData = {
+      ...data,
+      groups: nextGroups,
+    };
+
+    await persist(nextData);
+    if (category === group) {
+      setCategory('all');
+    }
+    setEditorSnippet((current) => ({
+      ...current,
+      category: current.category === group ? nextDefaultGroup : current.category,
+    }));
+    setStatus(`Group "${group}" deleted.`);
+  };
+
+  const handleRenameGroup = async () => {
+    if (!data) {
+      return;
+    }
+
+    const source = renameFromGroup;
+    const target = normalizeGroupName(renameToGroup);
+
+    if (!source) {
+      setStatus('Select a group to rename.');
+      return;
+    }
+
+    if (!target) {
+      setStatus('New group name is required.');
+      return;
+    }
+
+    if (source.toLowerCase() === target.toLowerCase()) {
+      setStatus('New group name must be different.');
+      return;
+    }
+
+    if (data.groups.some((group) => group.toLowerCase() === target.toLowerCase())) {
+      setStatus('Target group name already exists.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const nextGroups = data.groups
+      .map((group) => (group === source ? target : group))
+      .sort((left, right) => left.localeCompare(right));
+    const nextSnippets = data.snippets.map((snippet) => (
+      snippet.category === source
+        ? { ...snippet, category: target, updatedAt: now }
+        : snippet
+    ));
+
+    const nextData = {
+      ...data,
+      groups: nextGroups,
+      snippets: sortSnippets(nextSnippets),
+    };
+
+    await persist(nextData);
+    if (category === source) {
+      setCategory(target);
+    }
+    setEditorSnippet((current) => ({
+      ...current,
+      category: current.category === source ? target : current.category,
+    }));
+    setRenameToGroup('');
+    setStatus(`Group "${source}" renamed to "${target}".`);
+  };
+
+  const handleMoveGroupSnippets = async () => {
+    if (!data) {
+      return;
+    }
+
+    const source = moveFromGroup;
+    const target = moveToGroup;
+
+    if (!source || !target) {
+      setStatus('Select source and target groups.');
+      return;
+    }
+
+    if (source === target) {
+      setStatus('Source and target groups must be different.');
+      return;
+    }
+
+    const affected = data.snippets.filter((snippet) => snippet.category === source).length;
+    if (affected === 0) {
+      setStatus('No snippets to move for this group.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const nextSnippets = data.snippets.map((snippet) => (
+      snippet.category === source
+        ? { ...snippet, category: target, updatedAt: now }
+        : snippet
+    ));
+
+    const nextData = {
+      ...data,
+      snippets: sortSnippets(nextSnippets),
+    };
+
+    await persist(nextData);
+    if (category === source) {
+      setCategory(target);
+    }
+    setEditorSnippet((current) => ({
+      ...current,
+      category: current.category === source ? target : current.category,
+    }));
+    setStatus(`Moved ${affected} snippet(s) from "${source}" to "${target}".`);
   };
 
   const handleSaveSettings = async (
@@ -383,7 +587,7 @@ export default function App() {
     );
   }
 
-  const categories = Array.from(new Set(data.snippets.map((snippet) => snippet.category))).sort((left, right) => left.localeCompare(right));
+  const categories = data.groups;
   const visibleSnippets = sortSnippets(data.snippets)
     .filter((snippet) => matchesCategory(snippet, category))
     .filter((snippet) => matchesQuery(snippet, search));
@@ -408,6 +612,60 @@ export default function App() {
               {item}
             </button>
           ))}
+        </div>
+        <div className="group-manager">
+          <p className="eyebrow">Group management</p>
+          <div className="group-manager__create">
+            <input
+              value={newGroupName}
+              onChange={(event) => setNewGroupName(event.target.value)}
+              placeholder="New group"
+            />
+            <button type="button" className="ghost-button" onClick={() => void handleCreateGroup()}>
+              Add
+            </button>
+          </div>
+          <div className="group-manager__list">
+            {data.groups.map((group) => (
+              <div key={group} className="group-manager__item">
+                <span>{group}</span>
+                <button type="button" className="ghost-button" onClick={() => void handleDeleteGroup(group)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+            <div className="group-manager__rename">
+              <select value={renameFromGroup} onChange={(event) => setRenameFromGroup(event.target.value)}>
+                {data.groups.map((group) => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+              <input
+                value={renameToGroup}
+                onChange={(event) => setRenameToGroup(event.target.value)}
+                placeholder="Rename to"
+              />
+              <button type="button" className="ghost-button" onClick={() => void handleRenameGroup()}>
+                Rename
+              </button>
+            </div>
+            <div className="group-manager__move">
+              <select value={moveFromGroup} onChange={(event) => setMoveFromGroup(event.target.value)}>
+                {data.groups.map((group) => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+              <span>to</span>
+              <select value={moveToGroup} onChange={(event) => setMoveToGroup(event.target.value)}>
+                {data.groups.map((group) => (
+                  <option key={group} value={group}>{group}</option>
+                ))}
+              </select>
+              <button type="button" className="ghost-button" onClick={() => void handleMoveGroupSnippets()}>
+                Move snippets
+              </button>
+            </div>
         </div>
       </aside>
 
@@ -447,6 +705,7 @@ export default function App() {
 
           <SnippetEditor
             snippet={editorSnippet}
+            groups={data.groups}
             onChange={setEditorSnippet}
             onSave={() => void handleSave()}
             onDelete={() => void handleDelete()}

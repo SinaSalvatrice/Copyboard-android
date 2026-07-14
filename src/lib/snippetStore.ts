@@ -36,16 +36,33 @@ function normalizeSyncSettings(settings?: Partial<GitHubSyncSettings>): GitHubSy
   };
 }
 
+function normalizeGroups(groups: string[] | undefined, snippets: Snippet[]): string[] {
+  const fromSnippets = snippets.map((snippet) => snippet.category.trim()).filter(Boolean);
+  const merged = [...(groups ?? []), ...fromSnippets]
+    .map((group) => group.trim())
+    .filter(Boolean)
+    .map((group) => group || 'General');
+
+  const unique = Array.from(new Set(merged));
+  if (unique.length === 0) {
+    return ['General'];
+  }
+
+  return unique.sort((left, right) => left.localeCompare(right));
+}
+
 export function normalizeStoredData(data?: Partial<StoredData>): StoredData {
   const defaults = defaultStoredData();
   const snippets = (data?.snippets?.length ? data.snippets : defaults.snippets)
     .map(normalizeSnippet)
     .filter((snippet) => !snippet.deleted);
+  const groups = normalizeGroups(data?.groups, snippets);
 
   return {
     version: data?.version ?? 1,
     updatedAt: data?.updatedAt ?? defaults.updatedAt,
     snippets,
+    groups,
     syncSettings: normalizeSyncSettings(data?.syncSettings),
     preferences: normalizePreferences(data?.preferences),
   };

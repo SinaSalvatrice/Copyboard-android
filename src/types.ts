@@ -34,6 +34,7 @@ export interface StoredData {
   version: number;
   updatedAt: string;
   snippets: Snippet[];
+  groups: string[];
   syncSettings: GitHubSyncSettings;
   preferences: Preferences;
 }

@@ -27,6 +27,34 @@ class SnippetStore(context: Context) {
 
     fun saveAll(snippets: List<Snippet>) {
         prefs.edit().putString(KEY_SNIPPETS, snippetsToJsonArray(snippets).toString()).apply()
+        val categories = snippets.map { it.category.ifBlank { "General" } }
+        saveGroups(mergeGroups(getGroups(), categories))
+    }
+
+    fun getGroups(): MutableList<String> {
+        val raw = prefs.getString(KEY_GROUPS, null)
+        val fromPrefs = if (raw.isNullOrBlank()) {
+            emptyList()
+        } else {
+            runCatching {
+                val parsed = JSONArray(raw)
+                MutableList(parsed.length()) { index ->
+                    parsed.optString(index).trim()
+                }
+            }.getOrDefault(emptyList())
+        }
+
+        val categories = getAll().map { it.category.ifBlank { "General" } }
+        val merged = mergeGroups(fromPrefs, categories)
+        saveGroups(merged)
+        return merged.toMutableList()
+    }
+
+    fun saveGroups(groups: List<String>) {
+        val normalized = mergeGroups(groups, emptyList())
+        val array = JSONArray()
+        normalized.forEach { group -> array.put(group) }
+        prefs.edit().putString(KEY_GROUPS, array.toString()).apply()
     }
 
     fun exportBackupJson(): String {
@@ -111,6 +139,19 @@ class SnippetStore(context: Context) {
         return array
     }
 
+    private fun mergeGroups(existing: List<String>, categories: List<String>): List<String> {
+        val merged = (existing + categories)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toMutableList()
+
+        if (merged.none { it.equals("General", ignoreCase = true) }) {
+            merged.add("General")
+        }
+
+        return merged.distinctBy { it.lowercase() }.sorted()
+    }
+
     private fun defaultSnippets(): List<Snippet> = listOf(
         Snippet(
             id = UUID.randomUUID().toString(),
@@ -152,5 +193,6 @@ class SnippetStore(context: Context) {
     companion object {
         private const val PREFS_NAME = "copyboard_snippets"
         private const val KEY_SNIPPETS = "snippets_json"
+        private const val KEY_GROUPS = "groups_json"
     }
 }
