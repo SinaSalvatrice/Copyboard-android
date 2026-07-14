@@ -41,7 +41,8 @@
     "targets": ["nsis", "msi"],
     "icon": [
       "icons/icon-32.png",
-      "icons/icon-128.png"
+      "icons/icon-128.png",
+      "icons/icon.ico"
     ],
     "windows": {
       "nsis": {
