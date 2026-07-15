@@ -1,4 +1,5 @@
 import type { Snippet } from '../types';
+import { snippetPreviewText } from '../lib/noteFormat';
 
 interface SnippetListProps {
   snippets: Snippet[];
@@ -29,10 +30,10 @@ export function SnippetList({ snippets, selectedId, copiedId, onCopy, onSelect }
             <strong>{snippet.title}</strong>
             <span className="snippet-card__meta">
               {snippet.favorite ? '★ ' : ''}
-              {snippet.category}
+              {snippet.mode === 'checklist' ? `${snippet.category} · checklist` : snippet.category}
             </span>
           </div>
-          <p>{snippet.text}</p>
+          <p>{snippetPreviewText(snippet)}</p>
           <div className="snippet-card__footer">
             <span>{new Date(snippet.updatedAt).toLocaleString()}</span>
             <span className={`snippet-card__copied${copiedId === snippet.id ? ' is-visible' : ''}`}>Copied</span>

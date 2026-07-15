@@ -114,10 +114,14 @@ class SnippetStore(context: Context) {
     private fun parseSnippetArray(array: JSONArray): MutableList<Snippet> {
         return MutableList(array.length()) { index ->
             val obj = array.getJSONObject(index)
+            val mode = if (obj.optString("mode") == "checklist") "checklist" else "text"
+            val checklistItems = parseChecklistArray(obj.optJSONArray("checklistItems"))
             Snippet(
                 id = obj.optString("id", UUID.randomUUID().toString()),
                 title = obj.optString("title", "Untitled"),
                 text = obj.optString("text", ""),
+                mode = mode,
+                checklistItems = checklistItems,
                 category = obj.optString("category", "General"),
                 favorite = obj.optBoolean("favorite", false)
             )
@@ -132,8 +136,49 @@ class SnippetStore(context: Context) {
                     .put("id", snippet.id)
                     .put("title", snippet.title)
                     .put("text", snippet.text)
+                    .put("mode", snippet.mode)
+                    .put("checklistItems", checklistToJsonArray(snippet.checklistItems))
                     .put("category", snippet.category)
                     .put("favorite", snippet.favorite)
+            )
+        }
+        return array
+    }
+
+    private fun parseChecklistArray(array: JSONArray?): List<ChecklistItem> {
+        if (array == null) {
+            return emptyList()
+        }
+
+        val items = mutableListOf<ChecklistItem>()
+        for (index in 0 until array.length()) {
+            val obj = array.optJSONObject(index) ?: continue
+            val text = obj.optString("text", "").trim()
+            if (text.isBlank()) {
+                continue
+            }
+            items += ChecklistItem(
+                id = obj.optString("id", UUID.randomUUID().toString()),
+                text = text,
+                done = obj.optBoolean("done", false)
+            )
+        }
+
+        return items
+    }
+
+    private fun checklistToJsonArray(items: List<ChecklistItem>): JSONArray {
+        val array = JSONArray()
+        items.forEach { item ->
+            val text = item.text.trim()
+            if (text.isBlank()) {
+                return@forEach
+            }
+            array.put(
+                JSONObject()
+                    .put("id", item.id)
+                    .put("text", text)
+                    .put("done", item.done)
             )
         }
         return array
@@ -157,6 +202,8 @@ class SnippetStore(context: Context) {
             id = UUID.randomUUID().toString(),
             title = "Etsy Tags - Aluminium Ring",
             text = "adjustable band, aluminum jewelry, handmade metal, industrial style, minimalist, unisex jewelry, nickel free, brushed aluminum, everyday piece, made to order",
+            mode = "text",
+            checklistItems = emptyList(),
             category = "Etsy",
             favorite = true
         ),
@@ -164,6 +211,8 @@ class SnippetStore(context: Context) {
             id = UUID.randomUUID().toString(),
             title = "Material DE",
             text = "Nickelfreier, sehr leichter Aluminiumschmuck, von Hand gebogen, flachgehämmert und poliert.",
+            mode = "text",
+            checklistItems = emptyList(),
             category = "Schmuck",
             favorite = true
         ),
@@ -171,6 +220,8 @@ class SnippetStore(context: Context) {
             id = UUID.randomUUID().toString(),
             title = "Material EN",
             text = "Nickel-free, lightweight aluminum jewelry, bent, flattened and polished by hand.",
+            mode = "text",
+            checklistItems = emptyList(),
             category = "Jewelry",
             favorite = true
         ),
@@ -178,6 +229,8 @@ class SnippetStore(context: Context) {
             id = UUID.randomUUID().toString(),
             title = "Kundenantwort EN",
             text = "Thank you so much for your message. I will check this and get back to you.",
+            mode = "text",
+            checklistItems = emptyList(),
             category = "Customer",
             favorite = true
         ),
@@ -185,6 +238,8 @@ class SnippetStore(context: Context) {
             id = UUID.randomUUID().toString(),
             title = "AI Prompt - Schmuckfoto",
             text = "product photo of handmade aluminum jewelry, industrial neutral background, soft directional light, natural shadows, realistic surface texture, no redesign",
+            mode = "text",
+            checklistItems = emptyList(),
             category = "Prompts",
             favorite = false
         )

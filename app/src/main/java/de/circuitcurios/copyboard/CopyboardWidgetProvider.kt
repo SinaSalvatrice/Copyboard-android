@@ -132,7 +132,7 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
                 } else {
                     views.setViewVisibility(rowId, View.VISIBLE)
                     views.setTextViewText(titleIds[index], snippet.title)
-                    views.setTextViewText(previewIds[index], snippet.text.previewText())
+                    views.setTextViewText(previewIds[index], snippet.previewText())
 
                     val editIntent = Intent(context, MainActivity::class.java).apply {
                         putExtra(EXTRA_SNIPPET_ID, snippet.id)
@@ -198,9 +198,5 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
 
         private const val WIDGET_PREFS_NAME = "copyboard_widget"
 
-        private fun String.previewText(): String = replace("\n", " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .ifBlank { "Leerer Textbaustein" }
     }
 }

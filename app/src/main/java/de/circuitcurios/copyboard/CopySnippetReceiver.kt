@@ -15,7 +15,7 @@ class CopySnippetReceiver : BroadcastReceiver() {
         val snippet = SnippetStore(context).getAll().firstOrNull { it.id == id } ?: return
 
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(snippet.title, snippet.text))
+        clipboard.setPrimaryClip(ClipData.newPlainText(snippet.title, snippet.clipboardText()))
         Toast.makeText(context, "Kopiert: ${snippet.title}", Toast.LENGTH_SHORT).show()
     }
 }

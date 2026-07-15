@@ -360,6 +360,42 @@ button {
   gap: 8px;
 }
 
+.checklist-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.checklist-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.checklist-editor__list {
+  display: grid;
+  gap: 8px;
+}
+
+.checklist-editor__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.checklist-editor__row input[type='text'],
+.checklist-editor__row input:not([type]) {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: rgba(16, 24, 34, 0.95);
+  color: var(--text);
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -423,6 +459,14 @@ button {
 .floating-shell {
   height: 100vh;
   padding: 8px;
+  cursor: move;
+}
+
+.floating-shell button,
+.floating-shell input,
+.floating-shell textarea,
+.floating-shell select {
+  cursor: auto;
 }
 
 .floating-shell.is-icon {

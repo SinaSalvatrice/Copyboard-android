@@ -77,7 +77,7 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
                 } else {
                     views.setViewVisibility(rowId, View.VISIBLE)
                     views.setTextViewText(titleIds[index], snippet.title)
-                    views.setTextViewText(bodyIds[index], snippet.text.previewText())
+                    views.setTextViewText(bodyIds[index], snippet.previewText())
 
                     val openSnippetIntent = Intent(context, MainActivity::class.java).apply {
                         putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, snippet.id)
@@ -108,11 +108,5 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
 
             manager.updateAppWidget(appWidgetId, views)
         }
-
-        private fun String.previewText(): String = replace("\n", " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            .ifBlank { "Leere Notiz" }
-            .let { if (it.length > 110) it.take(110) + "…" else it }
     }
 }

@@ -24,6 +24,7 @@ import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.ArrayAdapter
+import android.widget.AdapterView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -222,9 +223,7 @@ class MainActivity : Activity() {
             .filter { snippet -> activeGroup == null || snippet.category == activeGroup }
             .filter { snippet ->
                 query.isBlank() ||
-                    snippet.title.lowercase().contains(query) ||
-                    snippet.category.lowercase().contains(query) ||
-                    snippet.text.lowercase().contains(query)
+                    snippet.searchText().contains(query)
             }
 
         if (filtered.isEmpty()) {
@@ -329,7 +328,8 @@ class MainActivity : Activity() {
         }
 
         val category = TextView(this).apply {
-            text = if (snippet.favorite) "★ ${snippet.category}" else snippet.category
+            val typeBadge = if (snippet.mode == "checklist") " · checklist" else ""
+            text = if (snippet.favorite) "★ ${snippet.category}$typeBadge" else snippet.category + typeBadge
             textSize = 12f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(groupColor)
@@ -337,7 +337,7 @@ class MainActivity : Activity() {
         }
 
         val preview = TextView(this).apply {
-            text = snippet.text.replace("\n", " ").let { if (it.length > 140) it.take(140) + "…" else it }
+            text = snippet.previewText().let { if (it.length > 140) it.take(140) + "…" else it }
             textSize = 14f
             setTextColor(colors.textSecondary)
             setPadding(0, dp(8), 0, 0)
@@ -397,6 +397,37 @@ class MainActivity : Activity() {
             setText(existing?.text.orEmpty())
         }
 
+        val modeOptions = listOf("Text", "Checklist")
+        val modeSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, modeOptions)
+            setSelection(if (existing?.mode == "checklist") 1 else 0)
+        }
+
+        val checklistInput = EditText(this).apply {
+            setHint("Checklist, eine Zeile pro Punkt. Optional: [x] erledigt")
+            setHintTextColor(colors.textSecondary)
+            setTextColor(colors.textPrimary)
+            minLines = 5
+            maxLines = 10
+            gravity = Gravity.TOP
+            setText(existing?.checklistItems?.joinToString("\n") {
+                "[${if (it.done) "x" else " "}] ${it.text}"
+            }.orEmpty())
+            visibility = if (existing?.mode == "checklist") View.VISIBLE else View.GONE
+        }
+
+        textInput.visibility = if (existing?.mode == "checklist") View.GONE else View.VISIBLE
+
+        modeSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val checklist = position == 1
+                textInput.visibility = if (checklist) View.GONE else View.VISIBLE
+                checklistInput.visibility = if (checklist) View.VISIBLE else View.GONE
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+
         val favoriteBox = CheckBox(this).apply {
             text = "Favorit / im Widget anzeigen"
             setTextColor(colors.textPrimary)
@@ -405,7 +436,9 @@ class MainActivity : Activity() {
 
         layout.addView(titleInput)
         layout.addView(categorySpinner)
+        layout.addView(modeSpinner)
         layout.addView(textInput)
+        layout.addView(checklistInput)
         layout.addView(favoriteBox)
 
         val dialog = AlertDialog.Builder(this)
@@ -424,10 +457,13 @@ class MainActivity : Activity() {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val title = titleInput.text.toString().trim()
                 val text = textInput.text.toString()
+                val mode = if (modeSpinner.selectedItemPosition == 1) "checklist" else "text"
+                val checklistItems = parseChecklistInput(checklistInput.text.toString())
                 val category = categorySpinner.selectedItem?.toString().orEmpty().ifBlank { "General" }
 
-                if (title.isBlank() || text.isBlank()) {
-                    Toast.makeText(this, "Titel und Text dürfen nicht leer sein.", Toast.LENGTH_SHORT).show()
+                val hasContent = if (mode == "checklist") checklistItems.isNotEmpty() else text.isNotBlank()
+                if (title.isBlank() || !hasContent) {
+                    Toast.makeText(this, "Titel und Notizinhalt dürfen nicht leer sein.", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
 
@@ -435,6 +471,8 @@ class MainActivity : Activity() {
                     id = existing?.id ?: UUID.randomUUID().toString(),
                     title = title,
                     text = text,
+                    mode = mode,
+                    checklistItems = checklistItems,
                     category = category,
                     favorite = favoriteBox.isChecked
                 )
@@ -442,7 +480,7 @@ class MainActivity : Activity() {
                 snippets = store.getAll()
                 groups = store.getGroups()
                 refreshWidgets()
-                hideKeyboard(textInput)
+                hideKeyboard(if (mode == "checklist") checklistInput else textInput)
                 renderSnippets()
                 dialog.dismiss()
             }
@@ -1086,8 +1124,31 @@ class MainActivity : Activity() {
 
     private fun copySnippet(snippet: Snippet) {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText(snippet.title, snippet.text))
+        clipboard.setPrimaryClip(ClipData.newPlainText(snippet.title, snippet.clipboardText()))
         Toast.makeText(this, "Kopiert: ${snippet.title}", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun parseChecklistInput(raw: String): List<ChecklistItem> {
+        return raw
+            .lines()
+            .mapNotNull { line ->
+                val trimmed = line.trim()
+                if (trimmed.isBlank()) {
+                    return@mapNotNull null
+                }
+
+                val done = trimmed.startsWith("[x]", ignoreCase = true)
+                val text = trimmed.removePrefix("[x]").removePrefix("[X]").removePrefix("[ ]").trim()
+                if (text.isBlank()) {
+                    return@mapNotNull null
+                }
+
+                ChecklistItem(
+                    id = UUID.randomUUID().toString(),
+                    text = text,
+                    done = done
+                )
+            }
     }
 
     private fun hideKeyboard(view: View) {
