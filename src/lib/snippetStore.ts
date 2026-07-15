@@ -1,15 +1,35 @@
 import { LazyStore } from '@tauri-apps/plugin-store';
 import { defaultPreferences, defaultStoredData, defaultSyncSettings } from './defaults';
-import type { GitHubSyncSettings, Preferences, Snippet, StoredData } from '../types';
+import type { ChecklistItem, GitHubSyncSettings, Preferences, Snippet, StoredData } from '../types';
 
 const store = new LazyStore('copyboard.store.json');
 const STORE_KEY = 'copyboard';
 
+function normalizeChecklistItem(item: Partial<ChecklistItem>): ChecklistItem | null {
+  const text = item.text?.trim() ?? '';
+  if (!text) {
+    return null;
+  }
+
+  return {
+    id: item.id ?? crypto.randomUUID(),
+    text,
+    done: Boolean(item.done),
+  };
+}
+
 function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
+  const mode = snippet.mode === 'checklist' ? 'checklist' : 'text';
+  const checklistItems = (snippet.checklistItems ?? [])
+    .map((item) => normalizeChecklistItem(item))
+    .filter((item): item is ChecklistItem => Boolean(item));
+
   return {
     id: snippet.id ?? crypto.randomUUID(),
     title: snippet.title?.trim() || 'Untitled',
     text: snippet.text ?? '',
+    mode,
+    checklistItems,
     category: snippet.category?.trim() || 'General',
     favorite: Boolean(snippet.favorite),
     updatedAt: snippet.updatedAt ?? new Date().toISOString(),

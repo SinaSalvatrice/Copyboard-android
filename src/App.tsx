@@ -13,6 +13,7 @@ import { SnippetList } from './components/SnippetList';
 import { createEmptySnippet } from './lib/defaults';
 import { publishState, subscribeState } from './lib/copyboardChannel';
 import { GitHubSyncError, pullFromGitHub, pushToGitHub, syncWithGitHub } from './lib/githubSync';
+import { snippetClipboardText, snippetSearchText } from './lib/noteFormat';
 import { isSyncConfigured, loadStoredData, recordSnippetUsage, removeSnippet, saveStoredData, upsertSnippet } from './lib/snippetStore';
 import type { CategoryFilter, GitHubSyncSettings, Snippet, StoredData } from './types';
 
@@ -34,7 +35,7 @@ function matchesQuery(snippet: Snippet, query: string) {
   }
 
   const lowered = query.trim().toLowerCase();
-  return [snippet.title, snippet.text, snippet.category].some((value) => value.toLowerCase().includes(lowered));
+  return snippetSearchText(snippet).includes(lowered);
 }
 
 function matchesCategory(snippet: Snippet, category: CategoryFilter) {
@@ -232,7 +233,7 @@ export default function App() {
 
   const handleCopy = async (snippet: Snippet) => {
     try {
-      await writeText(snippet.text);
+      await writeText(snippetClipboardText(snippet));
       setCopiedId(snippet.id);
       setStatus(`Copied "${snippet.title}".`);
       window.setTimeout(() => setCopiedId((current) => (current === snippet.id ? null : current)), 1200);

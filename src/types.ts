@@ -1,7 +1,17 @@
+export type NoteMode = 'text' | 'checklist';
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface Snippet {
   id: string;
   title: string;
   text: string;
+  mode: NoteMode;
+  checklistItems: ChecklistItem[];
   category: string;
   favorite: boolean;
   updatedAt: string;

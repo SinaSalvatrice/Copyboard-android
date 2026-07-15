@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow, LogicalPosition, LogicalSize } from '@tauri-apps/api/window';
 import type { Preferences, Snippet } from '../types';
+import { snippetPreviewText, snippetSearchText } from '../lib/noteFormat';
 import { SearchBox } from './SearchBox';
 
 const appWindow = getCurrentWindow();
@@ -37,7 +38,16 @@ export function FloatingWindow({
   const [search, setSearch] = useState('');
   const timerRef = useRef<number | null>(null);
   const animationRef = useRef<number | null>(null);
+  const draggingRef = useRef(false);
   const [animationState, setAnimationState] = useState<'idle' | 'expanding' | 'collapsing'>('idle');
+
+  const isInteractiveTarget = (target: EventTarget | null) => {
+    if (!(target instanceof HTMLElement)) {
+      return false;
+    }
+
+    return Boolean(target.closest('button, input, textarea, select, a, label, [data-no-drag]'));
+  };
 
   const clearAnimation = () => {
     if (animationRef.current !== null) {
@@ -129,6 +139,10 @@ export function FloatingWindow({
 
   const scheduleCollapse = () => {
     clearTimer();
+    if (draggingRef.current) {
+      return;
+    }
+
     if (preferences.floatingPinned || preferences.floatingCollapseMode === 'stay-open') {
       return;
     }
@@ -138,13 +152,36 @@ export function FloatingWindow({
     }, preferences.floatingHoverDelayMs);
   };
 
+  const handlePointerDown = async (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || isInteractiveTarget(event.target)) {
+      return;
+    }
+
+    draggingRef.current = true;
+    clearTimer();
+    try {
+      await appWindow.startDragging();
+    } finally {
+      draggingRef.current = false;
+    }
+  };
+
+  const handleMouseLeave = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+      return;
+    }
+
+    scheduleCollapse();
+  };
+
   const visible = snippets.filter((snippet) => {
     if (!search.trim()) {
       return true;
     }
 
     const query = search.trim().toLowerCase();
-    return [snippet.title, snippet.text, snippet.category].some((value) => value.toLowerCase().includes(query));
+    return snippetSearchText(snippet).includes(query);
   });
 
   const recent = preferences.recentSnippetIds
@@ -163,14 +200,15 @@ export function FloatingWindow({
         '--floating-icon-scale': String(preferences.floatingIconScale),
         '--floating-icon-opacity': String(preferences.floatingIconOpacity),
       } as React.CSSProperties}
+      onMouseDown={handlePointerDown}
       onMouseEnter={() => {
         showPanel();
       }}
-      onMouseLeave={scheduleCollapse}
+      onMouseLeave={handleMouseLeave}
     >
       {expanded ? (
         <>
-          <div className="floating-pill" data-tauri-drag-region>
+          <div className="floating-pill">
             <span>Copyboard</span>
           <div className="floating-pill__actions">
             <button type="button" className="floating-pill__pin" onClick={onOpenMain}>
@@ -207,7 +245,8 @@ export function FloatingWindow({
                   }}
                 >
                   <strong>{snippet.title}</strong>
-                  <span>{snippet.category}</span>
+                  <span>{snippet.mode === 'checklist' ? `${snippet.category} · checklist` : snippet.category}</span>
+                  <span>{snippetPreviewText(snippet)}</span>
                   <em className={copiedId === snippet.id ? 'is-visible' : ''}>Copied</em>
                 </button>
               ))}
@@ -232,7 +271,8 @@ export function FloatingWindow({
                   }}
                 >
                   <strong>{snippet.title}</strong>
-                  <span>{snippet.category}</span>
+                  <span>{snippet.mode === 'checklist' ? `${snippet.category} · checklist` : snippet.category}</span>
+                  <span>{snippetPreviewText(snippet)}</span>
                   <em className={copiedId === snippet.id ? 'is-visible' : ''}>Copied</em>
                 </button>
               ))}
@@ -243,7 +283,7 @@ export function FloatingWindow({
       ) : null}
 
       {!expanded ? (
-        <div className="floating-icon" data-tauri-drag-region title="Open Copyboard floating mode">
+        <div className="floating-icon" title="Open Copyboard floating mode">
           <span>CB</span>
         </div>
       ) : null}

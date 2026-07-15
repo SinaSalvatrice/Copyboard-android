@@ -441,7 +441,7 @@ class MainActivity : Activity() {
                 store.upsert(snippet)
                 snippets = store.getAll()
                 groups = store.getGroups()
-                CopyboardWidgetProvider.updateAll(this)
+                refreshWidgets()
                 hideKeyboard(textInput)
                 renderSnippets()
                 dialog.dismiss()
@@ -452,7 +452,7 @@ class MainActivity : Activity() {
                     store.delete(snippet.id)
                     snippets = store.getAll()
                     groups = store.getGroups()
-                    CopyboardWidgetProvider.updateAll(this)
+                    refreshWidgets()
                     renderSnippets()
                 }
                 dialog.dismiss()
@@ -1056,8 +1056,13 @@ class MainActivity : Activity() {
         snippets = store.getAll()
         groups = store.getGroups()
         selectedGroup = null
-        CopyboardWidgetProvider.updateAll(this)
+        refreshWidgets()
         renderSnippets()
+    }
+
+    private fun refreshWidgets() {
+        CopyboardWidgetProvider.updateAll(this)
+        FloatingNotesWidgetProvider.updateAll(this)
     }
 
     private fun backupFileName(): String {

@@ -29,6 +29,7 @@ The desktop app keeps the existing Copyboard idea intact: a personal snippet not
 - Tap to copy to clipboard
 - Long press to edit or delete
 - Favorites on the homescreen widget
+- Separate Floating Notes homescreen widget for quick note previews and one-tap copy
 
 ## Repository Structure
 

@@ -1,4 +1,4 @@
-import type { GitHubSyncSettings, Snippet, SyncPayload } from '../types';
+import type { ChecklistItem, GitHubSyncSettings, Snippet, SyncPayload } from '../types';
 
 interface GitHubContentsResponse {
   sha: string;
@@ -18,10 +18,28 @@ export class GitHubSyncError extends Error {
 }
 
 function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
+  const mode = snippet.mode === 'checklist' ? 'checklist' : 'text';
+  const checklistItems = (snippet.checklistItems ?? [])
+    .map((item) => {
+      const text = item.text?.trim() ?? '';
+      if (!text) {
+        return null;
+      }
+
+      return {
+        id: item.id ?? crypto.randomUUID(),
+        text,
+        done: Boolean(item.done),
+      } satisfies ChecklistItem;
+    })
+    .filter((item): item is ChecklistItem => Boolean(item));
+
   return {
     id: snippet.id ?? crypto.randomUUID(),
     title: snippet.title?.trim() || 'Untitled',
     text: snippet.text ?? '',
+    mode,
+    checklistItems,
     category: snippet.category?.trim() || 'General',
     favorite: Boolean(snippet.favorite),
     updatedAt: snippet.updatedAt ?? new Date().toISOString(),
