@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Copyboard</string>
-    <string name="widget_description">Copyboard Favoriten</string>
-    <string name="widget_notes_description">Copyboard Floating Notes</string>
+    <string name="widget_description">Copyboard Favoritenliste</string>
+    <string name="widget_notes_description">Copyboard Notiz</string>
 </resources>
