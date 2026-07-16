@@ -16,37 +16,16 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val editor = notePrefs(context).edit()
+        appWidgetIds.forEach { appWidgetId ->
+            editor.remove(selectedNoteKey(appWidgetId))
+        }
+        editor.apply()
+    }
+
     companion object {
-        private val rowIds = intArrayOf(
-            R.id.widgetNoteRow1,
-            R.id.widgetNoteRow2,
-            R.id.widgetNoteRow3
-        )
-
-        private val contentIds = intArrayOf(
-            R.id.widgetNoteContent1,
-            R.id.widgetNoteContent2,
-            R.id.widgetNoteContent3
-        )
-
-        private val titleIds = intArrayOf(
-            R.id.widgetNoteTitle1,
-            R.id.widgetNoteTitle2,
-            R.id.widgetNoteTitle3
-        )
-
-        private val bodyIds = intArrayOf(
-            R.id.widgetNoteBody1,
-            R.id.widgetNoteBody2,
-            R.id.widgetNoteBody3
-        )
-
-        private val copyIds = intArrayOf(
-            R.id.widgetNoteCopy1,
-            R.id.widgetNoteCopy2,
-            R.id.widgetNoteCopy3
-        )
-
         fun updateAll(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
             val component = ComponentName(context, FloatingNotesWidgetProvider::class.java)
@@ -54,11 +33,11 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
             ids.forEach { updateWidget(context, manager, it) }
         }
 
-        private fun updateWidget(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
+        fun updateWidget(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_floating_notes)
-            val snippets = SnippetStore(context).getAll()
-                .sortedWith(compareByDescending<Snippet> { it.favorite }.thenBy { it.title.lowercase() })
-                .take(3)
+            val store = SnippetStore(context)
+            val selectedId = selectedNoteId(context, appWidgetId)
+            val note = selectedId?.let { id -> store.getAll().firstOrNull { it.id == id } }
 
             val openAppIntent = Intent(context, MainActivity::class.java)
             val openAppPendingIntent = PendingIntent.getActivity(
@@ -67,46 +46,73 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
                 openAppIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widgetNotesTitle, openAppPendingIntent)
             views.setOnClickPendingIntent(R.id.widgetNotesOpenApp, openAppPendingIntent)
 
-            rowIds.forEachIndexed { index, rowId ->
-                val snippet = snippets.getOrNull(index)
-                if (snippet == null) {
-                    views.setViewVisibility(rowId, View.GONE)
-                } else {
-                    views.setViewVisibility(rowId, View.VISIBLE)
-                    views.setTextViewText(titleIds[index], snippet.title)
-                    views.setTextViewText(bodyIds[index], snippet.previewText())
+            val configureIntent = Intent(context, NoteWidgetConfigureActivity::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val configurePendingIntent = PendingIntent.getActivity(
+                context,
+                appWidgetId * 2000 + 1,
+                configureIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widgetNotesChange, configurePendingIntent)
 
-                    val openSnippetIntent = Intent(context, MainActivity::class.java).apply {
-                        putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, snippet.id)
-                    }
-                    val openSnippetPendingIntent = PendingIntent.getActivity(
-                        context,
-                        appWidgetId * 100 + index,
-                        openSnippetIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    views.setOnClickPendingIntent(contentIds[index], openSnippetPendingIntent)
-                    views.setOnClickPendingIntent(titleIds[index], openSnippetPendingIntent)
-                    views.setOnClickPendingIntent(bodyIds[index], openSnippetPendingIntent)
+            if (note == null) {
+                views.setTextViewText(R.id.widgetNotesTitle, "Notiz wählen")
+                views.setTextViewText(R.id.widgetNoteBody, "Dieses Widget zeigt eine feste Notiz. Tippe auf Wählen und such dir eine aus.")
+                views.setViewVisibility(R.id.widgetNoteCopy, View.GONE)
+                views.setOnClickPendingIntent(R.id.widgetNotesTitle, configurePendingIntent)
+                views.setOnClickPendingIntent(R.id.widgetNoteBody, configurePendingIntent)
+            } else {
+                views.setTextViewText(R.id.widgetNotesTitle, note.title)
+                views.setTextViewText(R.id.widgetNoteBody, note.clipboardText().ifBlank { note.previewText() })
+                views.setViewVisibility(R.id.widgetNoteCopy, View.VISIBLE)
 
-                    val copyIntent = Intent(context, CopySnippetReceiver::class.java).apply {
-                        action = CopyboardWidgetProvider.ACTION_COPY_SNIPPET
-                        putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, snippet.id)
-                    }
-                    val copyPendingIntent = PendingIntent.getBroadcast(
-                        context,
-                        appWidgetId * 1000 + index,
-                        copyIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                    views.setOnClickPendingIntent(copyIds[index], copyPendingIntent)
+                val openNoteIntent = Intent(context, MainActivity::class.java).apply {
+                    putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, note.id)
                 }
+                val openNotePendingIntent = PendingIntent.getActivity(
+                    context,
+                    appWidgetId * 3000 + 1,
+                    openNoteIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widgetNotesTitle, openNotePendingIntent)
+                views.setOnClickPendingIntent(R.id.widgetNoteBody, openNotePendingIntent)
+
+                val copyIntent = Intent(context, CopySnippetReceiver::class.java).apply {
+                    action = CopyboardWidgetProvider.ACTION_COPY_SNIPPET
+                    putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, note.id)
+                }
+                val copyPendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId * 4000 + 1,
+                    copyIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(R.id.widgetNoteCopy, copyPendingIntent)
             }
 
             manager.updateAppWidget(appWidgetId, views)
         }
+
+        fun setSelectedNote(context: Context, appWidgetId: Int, snippetId: String) {
+            notePrefs(context).edit()
+                .putString(selectedNoteKey(appWidgetId), snippetId)
+                .apply()
+        }
+
+        private fun selectedNoteId(context: Context, appWidgetId: Int): String? {
+            return notePrefs(context).getString(selectedNoteKey(appWidgetId), null)
+        }
+
+        private fun notePrefs(context: Context) =
+            context.getSharedPreferences(NOTE_WIDGET_PREFS_NAME, Context.MODE_PRIVATE)
+
+        private fun selectedNoteKey(appWidgetId: Int) = "selected_note_$appWidgetId"
+
+        private const val NOTE_WIDGET_PREFS_NAME = "copyboard_note_widgets"
     }
 }
