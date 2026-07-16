@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="de.circuitcurios.copyboard.NoteWidgetConfigureActivity"
     android:description="@string/widget_notes_description"
     android:initialLayout="@layout/widget_floating_notes"
     android:minWidth="220dp"
