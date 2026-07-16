@@ -28,8 +28,29 @@ The desktop app keeps the existing Copyboard idea intact: a personal snippet not
 - Search
 - Tap to copy to clipboard
 - Long press to edit or delete
-- Favorites on the homescreen widget
-- Separate Floating Notes homescreen widget for quick note previews and one-tap copy
+- Resizable favorites homescreen widget with up to 20 visible/copyable entries
+- Group cycling in the favorites widget
+- Separate note homescreen widget that can be configured to show one chosen note, ColorNote-style
+- One-tap copy from both widgets
+
+## Android Widgets
+
+Copyboard ships two homescreen widgets:
+
+1. **Copyboard Favoritenliste**
+   - Shows up to 20 snippets instead of the old 4 fixed rows.
+   - The widget is scrollable and resizable.
+   - It prefers favorites in the selected group, falls back to the group, then to all favorites/all snippets.
+   - Tapping the group chip cycles through groups.
+   - Tapping a row copies that snippet.
+
+2. **Copyboard Notiz**
+   - Works like a small ColorNote-style note widget.
+   - When adding the widget, choose one specific snippet/note.
+   - The selected note is displayed directly inside the widget.
+   - Tapping the note opens it in Copyboard.
+   - The copy button copies the complete note/checklist text.
+   - The `Wählen` button lets you switch the widget to a different note.
 
 ## Repository Structure
 
@@ -217,69 +238,3 @@ Builds a debug APK and uploads it as an artifact.
 Workflow:
 
 - `.github/workflows/desktop-build.yml`
-
-It runs:
-
-1. `npm install`
-2. `npm run build`
-3. `npm run tauri:build`
-
-Artifacts uploaded:
-
-- Windows NSIS bundle
-- Windows MSI bundle
-- Release `.exe` when produced
-- Frontend `dist/`
-
-### Start a GitHub Actions Build
-
-You can trigger either workflow by:
-
-1. Pushing to `main` or `master`
-2. Opening a pull request
-3. Running `workflow_dispatch` manually in GitHub Actions
-
-## Local Android Build
-
-### Android Studio
-
-1. Open the repository in Android Studio.
-2. Wait for Gradle sync.
-3. Run `app` or use `Build > Build APK(s)`.
-
-### Gradle CLI
-
-This repository intentionally does not include a Gradle wrapper.
-
-```bash
-gradle :app:assembleDebug
-```
-
-APK output:
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-## Notes
-
-- Desktop sync errors are surfaced in the UI, including token problems, missing repo/file, permission issues, network failures, and invalid JSON.
-- The current desktop token storage is local, not hardcoded, and intentionally encapsulated so secure storage can be added later.
-- The desktop and floating windows share the same stored snippet data and synchronize through the Tauri store plus a local broadcast channel.
-
-## patch
-
--the following steps are to do, they apply on both, android and desktop app, as far as reasonable
-
-- add dark mode
-- add a button in floating mode to return to app
-- remove the terminal window, tray in tray
-
-## add settings menu
-
-- in this menu, wich is accessed over a button, are following functions:
-
-- autostart
-- git sync
-- dark mode
-- make some useful suggestions

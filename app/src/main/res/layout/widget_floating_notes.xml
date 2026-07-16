@@ -17,10 +17,27 @@
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_weight="1"
+            android:ellipsize="end"
             android:gravity="center_vertical"
-            android:text="Floating Notes"
+            android:maxLines="1"
+            android:text="Notiz"
             android:textColor="@color/widget_text_primary"
             android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widgetNotesChange"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/snippet_button_background"
+            android:gravity="center"
+            android:minWidth="68dp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="Wählen"
+            android:textColor="@color/widget_text_primary"
+            android:textSize="11sp"
             android:textStyle="bold" />
 
         <TextView
@@ -34,159 +51,30 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/widgetNoteRow1"
+    <TextView
+        android:id="@+id/widgetNoteBody"
         android:layout_width="match_parent"
-        android:layout_height="58dp"
-        android:layout_marginTop="6dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_weight="1"
         android:background="@drawable/snippet_button_background"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="10dp"
-        android:paddingEnd="6dp">
+        android:ellipsize="end"
+        android:gravity="top|start"
+        android:maxLines="12"
+        android:padding="12dp"
+        android:text="Wähle eine Notiz für dieses Widget."
+        android:textColor="@color/widget_text_secondary"
+        android:textSize="13sp" />
 
-        <LinearLayout
-            android:id="@+id/widgetNoteContent1"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/widgetNoteTitle1"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Note 1"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widgetNoteBody1"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:text="Preview"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/widgetNoteCopy1"
-            android:layout_width="38dp"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="⧉"
-            android:textColor="@color/widget_text_primary"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/widgetNoteRow2"
+    <TextView
+        android:id="@+id/widgetNoteCopy"
         android:layout_width="match_parent"
-        android:layout_height="58dp"
-        android:layout_marginTop="6dp"
+        android:layout_height="34dp"
+        android:layout_marginTop="8dp"
         android:background="@drawable/snippet_button_background"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="10dp"
-        android:paddingEnd="6dp">
-
-        <LinearLayout
-            android:id="@+id/widgetNoteContent2"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/widgetNoteTitle2"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Note 2"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widgetNoteBody2"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:text="Preview"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/widgetNoteCopy2"
-            android:layout_width="38dp"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="⧉"
-            android:textColor="@color/widget_text_primary"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/widgetNoteRow3"
-        android:layout_width="match_parent"
-        android:layout_height="58dp"
-        android:layout_marginTop="6dp"
-        android:background="@drawable/snippet_button_background"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="10dp"
-        android:paddingEnd="6dp">
-
-        <LinearLayout
-            android:id="@+id/widgetNoteContent3"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center_vertical"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/widgetNoteTitle3"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:text="Note 3"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widgetNoteBody3"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:text="Preview"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/widgetNoteCopy3"
-            android:layout_width="38dp"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="⧉"
-            android:textColor="@color/widget_text_primary"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+        android:gravity="center"
+        android:text="Notiz kopieren"
+        android:textColor="@color/widget_text_primary"
+        android:textSize="12sp"
+        android:textStyle="bold" />
 </LinearLayout>

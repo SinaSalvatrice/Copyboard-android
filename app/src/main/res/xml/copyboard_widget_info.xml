@@ -3,7 +3,7 @@
     android:description="@string/widget_description"
     android:initialLayout="@layout/widget_copyboard"
     android:minWidth="220dp"
-    android:minHeight="110dp"
+    android:minHeight="160dp"
     android:previewLayout="@layout/widget_copyboard"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
