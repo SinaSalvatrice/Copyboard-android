@@ -7,13 +7,15 @@
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher_foreground"
         android:label="@string/app_name"
+        android:resizeableActivity="true"
         android:roundIcon="@drawable/ic_launcher_foreground"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:resizeableActivity="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -21,8 +23,14 @@
         </activity>
 
         <activity
+            android:name=".NoteEditorActivity"
+            android:exported="false"
+            android:resizeableActivity="true" />
+
+        <activity
             android:name=".NoteWidgetConfigureActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:resizeableActivity="true" />
 
         <service
             android:name=".CopyboardWidgetService"
@@ -31,6 +39,10 @@
 
         <receiver
             android:name=".CopySnippetReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".CopyNoteReceiver"
             android:exported="false" />
 
         <receiver
