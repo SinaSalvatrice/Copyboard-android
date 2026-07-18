@@ -35,9 +35,9 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
 
         fun updateWidget(context: Context, manager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_floating_notes)
-            val store = SnippetStore(context)
+            val store = NoteStore(context)
             val selectedId = selectedNoteId(context, appWidgetId)
-            val note = selectedId?.let { id -> store.getAll().firstOrNull { it.id == id } }
+            val note = selectedId?.let { id -> store.get(id) }
 
             val openAppIntent = Intent(context, MainActivity::class.java)
             val openAppPendingIntent = PendingIntent.getActivity(
@@ -61,17 +61,17 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
 
             if (note == null) {
                 views.setTextViewText(R.id.widgetNotesTitle, "Notiz wählen")
-                views.setTextViewText(R.id.widgetNoteBody, "Dieses Widget zeigt eine feste Notiz. Tippe auf Wählen und such dir eine aus.")
+                views.setTextViewText(R.id.widgetNoteBody, "Dieses Widget zeigt eine echte Copyboard-Notiz. Tippe auf Wählen und erstelle oder wähle eine Notiz.")
                 views.setViewVisibility(R.id.widgetNoteCopy, View.GONE)
                 views.setOnClickPendingIntent(R.id.widgetNotesTitle, configurePendingIntent)
                 views.setOnClickPendingIntent(R.id.widgetNoteBody, configurePendingIntent)
             } else {
                 views.setTextViewText(R.id.widgetNotesTitle, note.title)
-                views.setTextViewText(R.id.widgetNoteBody, note.clipboardText().ifBlank { note.previewText() })
+                views.setTextViewText(R.id.widgetNoteBody, note.body.ifBlank { note.previewText() })
                 views.setViewVisibility(R.id.widgetNoteCopy, View.VISIBLE)
 
-                val openNoteIntent = Intent(context, MainActivity::class.java).apply {
-                    putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, note.id)
+                val openNoteIntent = Intent(context, NoteEditorActivity::class.java).apply {
+                    putExtra(CopyNoteReceiver.EXTRA_NOTE_ID, note.id)
                 }
                 val openNotePendingIntent = PendingIntent.getActivity(
                     context,
@@ -82,9 +82,9 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
                 views.setOnClickPendingIntent(R.id.widgetNotesTitle, openNotePendingIntent)
                 views.setOnClickPendingIntent(R.id.widgetNoteBody, openNotePendingIntent)
 
-                val copyIntent = Intent(context, CopySnippetReceiver::class.java).apply {
-                    action = CopyboardWidgetProvider.ACTION_COPY_SNIPPET
-                    putExtra(CopyboardWidgetProvider.EXTRA_SNIPPET_ID, note.id)
+                val copyIntent = Intent(context, CopyNoteReceiver::class.java).apply {
+                    action = CopyNoteReceiver.ACTION_COPY_NOTE
+                    putExtra(CopyNoteReceiver.EXTRA_NOTE_ID, note.id)
                 }
                 val copyPendingIntent = PendingIntent.getBroadcast(
                     context,
@@ -98,9 +98,9 @@ class FloatingNotesWidgetProvider : AppWidgetProvider() {
             manager.updateAppWidget(appWidgetId, views)
         }
 
-        fun setSelectedNote(context: Context, appWidgetId: Int, snippetId: String) {
+        fun setSelectedNote(context: Context, appWidgetId: Int, noteId: String) {
             notePrefs(context).edit()
-                .putString(selectedNoteKey(appWidgetId), snippetId)
+                .putString(selectedNoteKey(appWidgetId), noteId)
                 .apply()
         }
 
