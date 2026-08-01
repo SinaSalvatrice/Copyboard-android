@@ -50,6 +50,8 @@ export interface StoredData {
   updatedAt: string;
   snippets: Snippet[];
   groups: string[];
+  folders: string[];
+  groupFolders: Record<string, string | null>;
   syncSettings: GitHubSyncSettings;
   preferences: Preferences;
 }

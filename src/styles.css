@@ -421,10 +421,16 @@ button {
   display: grid;
   place-items: center;
   background: rgba(7, 10, 16, 0.66);
+  padding: 16px;
+  overflow: hidden;
+  z-index: 1000;
 }
 
 .modal-panel {
-  width: min(640px, calc(100vw - 32px));
+  width: min(640px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 28px;
   padding: 24px;
 }
@@ -647,4 +653,19 @@ button {
   .group-manager__move {
     grid-template-columns: 1fr;
   }
+}
+
+.category-folder > span {
+  display: block;
+  padding: 8px 12px 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.floating-pill__drag-handle {
+  flex: 1;
+  cursor: move;
+  user-select: none;
 }

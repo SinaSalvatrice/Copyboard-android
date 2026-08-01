@@ -209,7 +209,7 @@ export function FloatingWindow({
       {expanded ? (
         <>
           <div className="floating-pill">
-            <span>Copyboard</span>
+            <span className="floating-pill__drag-handle" data-tauri-drag-region>Copyboard</span>
           <div className="floating-pill__actions">
             <button type="button" className="floating-pill__pin" onClick={onOpenMain}>
               App
@@ -283,7 +283,7 @@ export function FloatingWindow({
       ) : null}
 
       {!expanded ? (
-        <div className="floating-icon" title="Open Copyboard floating mode">
+        <div className="floating-icon" data-tauri-drag-region title="Drag to move; hover to open Copyboard">
           <span>CB</span>
         </div>
       ) : null}
