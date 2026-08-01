@@ -84,18 +84,30 @@ function normalizeGroups(groups: string[] | undefined, snippets: Snippet[]): str
   return unique.sort((left, right) => left.localeCompare(right));
 }
 
+function normalizeFolders(folders: string[] | undefined): string[] {
+  return Array.from(new Set((folders ?? []).map((folder) => folder.trim()).filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right));
+}
+
 export function normalizeStoredData(data?: Partial<StoredData>): StoredData {
   const defaults = defaultStoredData();
   const snippets = (data?.snippets?.length ? data.snippets : defaults.snippets)
     .map(normalizeSnippet)
     .filter((snippet) => !snippet.deleted);
   const groups = normalizeGroups(data?.groups, snippets);
+  const folders = normalizeFolders(data?.folders);
+  const groupFolders = Object.fromEntries(groups.map((group) => {
+    const folder = data?.groupFolders?.[group]?.trim() || null;
+    return [group, folder && folders.includes(folder) ? folder : null];
+  }));
 
   return {
     version: data?.version ?? 1,
     updatedAt: data?.updatedAt ?? defaults.updatedAt,
     snippets,
     groups,
+    folders,
+    groupFolders,
     syncSettings: normalizeSyncSettings(data?.syncSettings),
     preferences: normalizePreferences(data?.preferences),
   };

@@ -91,6 +91,7 @@ export default function App() {
   const [renameToGroup, setRenameToGroup] = useState('');
   const [moveFromGroup, setMoveFromGroup] = useState('');
   const [moveToGroup, setMoveToGroup] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
 
   useEffect(() => {
     void loadStoredData().then((loaded) => {
@@ -181,6 +182,18 @@ export default function App() {
       .then((enabled) => setAutostartEnabled(enabled))
       .catch(() => setStatus('Autostart state is unavailable.'));
   }, []);
+
+  useEffect(() => {
+    if (!showSettings) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showSettings]);
 
   useEffect(() => {
     if (currentLabel !== 'main') {
@@ -330,6 +343,44 @@ export default function App() {
     setStatus(`Group "${candidate}" created.`);
   };
 
+  const handleCreateFolder = async () => {
+    if (!data) return;
+    const candidate = normalizeGroupName(newFolderName);
+    if (!candidate) {
+      setStatus('Folder name is required.');
+      return;
+    }
+    if (data.folders.some((folder) => folder.toLowerCase() === candidate.toLowerCase())) {
+      setStatus('Folder already exists.');
+      return;
+    }
+    await persist({ ...data, folders: [...data.folders, candidate].sort((a, b) => a.localeCompare(b)) });
+    setNewFolderName('');
+    setStatus(`Folder "${candidate}" created.`);
+  };
+
+  const handleAssignFolder = async (group: string, folder: string) => {
+    if (!data) return;
+    await persist({
+      ...data,
+      groupFolders: { ...data.groupFolders, [group]: folder || null },
+    });
+    setStatus(folder ? `Group "${group}" moved to "${folder}".` : `Group "${group}" removed from its folder.`);
+  };
+
+  const handleDeleteFolder = async (folder: string) => {
+    if (!data) return;
+    await persist({
+      ...data,
+      folders: data.folders.filter((item) => item !== folder),
+      groupFolders: Object.fromEntries(Object.entries(data.groupFolders).map(([group, current]) => [
+        group,
+        current === folder ? null : current,
+      ])),
+    });
+    setStatus(`Folder "${folder}" deleted; its groups are now unfiled.`);
+  };
+
   const handleDeleteGroup = async (group: string) => {
     if (!data) {
       return;
@@ -404,6 +455,10 @@ export default function App() {
     const nextData = {
       ...data,
       groups: nextGroups,
+      groupFolders: Object.fromEntries(Object.entries(data.groupFolders).map(([group, folder]) => [
+        group === source ? target : group,
+        folder,
+      ])),
       snippets: sortSnippets(nextSnippets),
     };
 
@@ -640,14 +695,35 @@ export default function App() {
           <button type="button" className={category === 'favorites' ? 'is-active' : ''} onClick={() => setCategory('favorites')}>
             Favorites
           </button>
-          {categories.map((item) => (
-            <button key={item} type="button" className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>
-              {item}
-            </button>
-          ))}
+          {[...data.folders, null].map((folder) => {
+            const folderGroups = categories.filter((group) => (data.groupFolders[group] ?? null) === folder);
+            if (folderGroups.length === 0) return null;
+            return (
+              <div className="category-folder" key={folder ?? 'unfiled'}>
+                <span>{folder ?? 'Other groups'}</span>
+                {folderGroups.map((item) => (
+                  <button key={item} type="button" className={category === item ? 'is-active' : ''} onClick={() => setCategory(item)}>
+                    {item}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </div>
         <div className="group-manager">
           <p className="eyebrow">Group management</p>
+          <div className="group-manager__create">
+            <input value={newFolderName} onChange={(event) => setNewFolderName(event.target.value)} placeholder="New folder" />
+            <button type="button" className="ghost-button" onClick={() => void handleCreateFolder()}>Add folder</button>
+          </div>
+          <div className="group-manager__list">
+            {data.folders.map((folder) => (
+              <div key={folder} className="group-manager__item">
+                <strong>{folder}</strong>
+                <button type="button" className="ghost-button" onClick={() => void handleDeleteFolder(folder)}>Remove</button>
+              </div>
+            ))}
+          </div>
           <div className="group-manager__create">
             <input
               value={newGroupName}
@@ -662,6 +738,10 @@ export default function App() {
             {data.groups.map((group) => (
               <div key={group} className="group-manager__item">
                 <span>{group}</span>
+                <select value={data.groupFolders[group] ?? ''} onChange={(event) => void handleAssignFolder(group, event.target.value)}>
+                  <option value="">No folder</option>
+                  {data.folders.map((folder) => <option key={folder} value={folder}>{folder}</option>)}
+                </select>
                 <button type="button" className="ghost-button" onClick={() => void handleDeleteGroup(group)}>
                   Remove
                 </button>

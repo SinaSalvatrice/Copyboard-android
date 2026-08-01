@@ -42,6 +42,8 @@ class MainActivity : Activity() {
     private lateinit var colors: AppColors
     private var snippets: MutableList<Snippet> = mutableListOf()
     private var groups: MutableList<String> = mutableListOf()
+    private var folders: MutableList<String> = mutableListOf()
+    private var groupFolders: MutableMap<String, String> = mutableMapOf()
     private var importReplaceExisting: Boolean = false
     private var selectedGroup: String? = null
 
@@ -53,6 +55,8 @@ class MainActivity : Activity() {
         store = SnippetStore(this)
         snippets = store.getAll()
         groups = store.getGroups()
+        folders = store.getFolders()
+        groupFolders = store.getGroupFolders()
         buildUi()
         renderSnippets()
         openSnippetFromIntent(intent)
@@ -63,6 +67,8 @@ class MainActivity : Activity() {
         setIntent(intent)
         snippets = store.getAll()
         groups = store.getGroups()
+        folders = store.getFolders()
+        groupFolders = store.getGroupFolders()
         renderSnippets()
         openSnippetFromIntent(intent)
     }
@@ -261,8 +267,9 @@ class MainActivity : Activity() {
             renderSnippets()
         }
 
-        groups.forEach { group ->
-            addGroupFilter(group, selectedGroup == group, groupColor(group)) {
+        groups.sortedWith(compareBy({ groupFolders[it] ?: "\uffff" }, { it })).forEach { group ->
+            val folder = groupFolders[group]
+            addGroupFilter(if (folder == null) group else "$folder / $group", selectedGroup == group, groupColor(group)) {
                 selectedGroup = group
                 renderSnippets()
             }
@@ -531,6 +538,9 @@ class MainActivity : Activity() {
         options.add("Neue Gruppe erstellen")
         options.add("Gruppe umbenennen")
         options.add("Textbausteine verschieben")
+        options.add("Neuen Ordner erstellen")
+        options.add("Gruppe einem Ordner zuweisen")
+        if (folders.isNotEmpty()) options.add("Ordner l\u00f6schen")
         groups.filter { it != "General" }.forEach { group ->
             options.add("Gruppe löschen: $group")
         }
@@ -545,12 +555,78 @@ class MainActivity : Activity() {
                     showRenameGroupDialog()
                 } else if (selected == "Textbausteine verschieben") {
                     showMoveSnippetsDialog()
+                } else if (selected == "Neuen Ordner erstellen") {
+                    showCreateFolderDialog()
+                } else if (selected == "Gruppe einem Ordner zuweisen") {
+                    showAssignFolderDialog()
+                } else if (selected == "Ordner l\u00f6schen") {
+                    showDeleteFolderDialog()
                 } else {
                     val group = selected.removePrefix("Gruppe löschen: ").trim()
                     deleteGroup(group)
                 }
             }
             .setNegativeButton("Schließen", null)
+            .show()
+    }
+
+    private fun showCreateFolderDialog() {
+        val input = EditText(this).apply { hint = "Ordnername"; setSingleLine(true) }
+        AlertDialog.Builder(this)
+            .setTitle("Neuer Ordner")
+            .setView(input)
+            .setPositiveButton("Erstellen") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isBlank() || folders.any { it.equals(name, ignoreCase = true) }) {
+                    Toast.makeText(this, "Ordnername fehlt oder existiert bereits.", Toast.LENGTH_SHORT).show()
+                } else {
+                    folders.add(name)
+                    store.saveFolders(folders)
+                    folders = store.getFolders()
+                    renderSnippets()
+                }
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun showAssignFolderDialog() {
+        if (folders.isEmpty()) {
+            Toast.makeText(this, "Erstelle zuerst einen Ordner.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), 0) }
+        val groupSpinner = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, groups) }
+        val choices = listOf("Kein Ordner") + folders
+        val folderSpinner = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, choices) }
+        layout.addView(groupSpinner); layout.addView(folderSpinner)
+        AlertDialog.Builder(this)
+            .setTitle("Gruppe einordnen")
+            .setView(layout)
+            .setPositiveButton("Speichern") { _, _ ->
+                val group = groupSpinner.selectedItem.toString()
+                val choice = folderSpinner.selectedItem.toString()
+                if (choice == "Kein Ordner") groupFolders.remove(group) else groupFolders[group] = choice
+                store.saveGroupFolders(groupFolders)
+                groupFolders = store.getGroupFolders()
+                renderSnippets()
+            }
+            .setNegativeButton("Abbrechen", null)
+            .show()
+    }
+
+    private fun showDeleteFolderDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Ordner l\u00f6schen")
+            .setItems(folders.toTypedArray()) { _, which ->
+                val folder = folders[which]
+                folders.remove(folder)
+                store.saveFolders(folders)
+                folders = store.getFolders()
+                groupFolders = store.getGroupFolders()
+                renderSnippets()
+            }
+            .setNegativeButton("Abbrechen", null)
             .show()
     }
 
@@ -655,6 +731,8 @@ class MainActivity : Activity() {
 
         groups = groups.map { if (it == source) target else it }.distinctBy { it.lowercase() }.sorted().toMutableList()
         store.saveGroups(groups)
+        groupFolders.remove(source)?.let { folder -> groupFolders[target] = folder }
+        store.saveGroupFolders(groupFolders)
         store.saveAll(updatedSnippets)
         snippets = store.getAll()
         groups = store.getGroups()
@@ -750,6 +828,8 @@ class MainActivity : Activity() {
 
         groups = groups.filter { it != group }.toMutableList()
         store.saveGroups(groups)
+        groupFolders.remove(group)
+        store.saveGroupFolders(groupFolders)
         if (selectedGroup == group) {
             selectedGroup = null
         }
@@ -1093,6 +1173,8 @@ class MainActivity : Activity() {
     private fun refreshAfterImport() {
         snippets = store.getAll()
         groups = store.getGroups()
+        folders = store.getFolders()
+        groupFolders = store.getGroupFolders()
         selectedGroup = null
         refreshWidgets()
         renderSnippets()

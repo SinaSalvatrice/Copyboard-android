@@ -97,6 +97,8 @@ export function defaultStoredData(): StoredData {
     updatedAt: now,
     snippets: defaultSnippets(),
     groups: defaultGroups(),
+    folders: [],
+    groupFolders: {},
     syncSettings: defaultSyncSettings(),
     preferences: defaultPreferences(),
   };

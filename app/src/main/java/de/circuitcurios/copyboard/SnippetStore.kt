@@ -57,11 +57,53 @@ class SnippetStore(context: Context) {
         prefs.edit().putString(KEY_GROUPS, array.toString()).apply()
     }
 
+    fun getFolders(): MutableList<String> {
+        val raw = prefs.getString(KEY_FOLDERS, null) ?: return mutableListOf()
+        return runCatching {
+            val array = JSONArray(raw)
+            MutableList(array.length()) { index -> array.optString(index).trim() }
+                .filter { it.isNotBlank() }
+                .distinctBy { it.lowercase() }
+                .sorted()
+                .toMutableList()
+        }.getOrDefault(mutableListOf())
+    }
+
+    fun saveFolders(folders: List<String>) {
+        val normalized = folders.map { it.trim() }.filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }.sorted()
+        prefs.edit().putString(KEY_FOLDERS, JSONArray(normalized).toString()).apply()
+        val valid = normalized.toSet()
+        saveGroupFolders(getGroupFolders().filterValues { it in valid })
+    }
+
+    fun getGroupFolders(): MutableMap<String, String> {
+        val raw = prefs.getString(KEY_GROUP_FOLDERS, null) ?: return mutableMapOf()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().mapNotNull { group ->
+                obj.optString(group).takeIf { it.isNotBlank() }?.let { group to it }
+            }.toMap().toMutableMap()
+        }.getOrDefault(mutableMapOf())
+    }
+
+    fun saveGroupFolders(assignments: Map<String, String>) {
+        val validGroups = getGroups().toSet()
+        val validFolders = getFolders().toSet()
+        val obj = JSONObject()
+        assignments.filter { it.key in validGroups && it.value in validFolders }
+            .forEach { (group, folder) -> obj.put(group, folder) }
+        prefs.edit().putString(KEY_GROUP_FOLDERS, obj.toString()).apply()
+    }
+
     fun exportBackupJson(): String {
         return JSONObject()
             .put("version", 1)
             .put("app", "Copyboard")
             .put("snippets", snippetsToJsonArray(getAll()))
+            .put("groups", JSONArray(getGroups()))
+            .put("folders", JSONArray(getFolders()))
+            .put("groupFolders", JSONObject(getGroupFolders()))
             .toString(2)
     }
 
@@ -83,8 +125,25 @@ class SnippetStore(context: Context) {
         }
 
         saveAll(finalList)
+        if (!trimmedBackupIsArray(raw)) {
+            val backup = JSONObject(raw)
+            val importedGroups = backup.optJSONArray("groups")
+            if (importedGroups != null) {
+                saveGroups(List(importedGroups.length()) { importedGroups.optString(it) })
+            }
+            val importedFolders = backup.optJSONArray("folders")
+            if (importedFolders != null) {
+                saveFolders(List(importedFolders.length()) { importedFolders.optString(it) })
+            }
+            val importedAssignments = backup.optJSONObject("groupFolders")
+            if (importedAssignments != null) {
+                saveGroupFolders(importedAssignments.keys().asSequence().associateWith { importedAssignments.optString(it) })
+            }
+        }
         return imported.size
     }
+
+    private fun trimmedBackupIsArray(raw: String) = raw.trim().startsWith("[")
 
     fun upsert(snippet: Snippet) {
         val list = getAll()
@@ -249,5 +308,7 @@ class SnippetStore(context: Context) {
         private const val PREFS_NAME = "copyboard_snippets"
         private const val KEY_SNIPPETS = "snippets_json"
         private const val KEY_GROUPS = "groups_json"
+        private const val KEY_FOLDERS = "folders_json"
+        private const val KEY_GROUP_FOLDERS = "group_folders_json"
     }
 }
