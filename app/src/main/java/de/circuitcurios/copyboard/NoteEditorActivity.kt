@@ -9,9 +9,11 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import java.util.UUID
@@ -22,6 +24,8 @@ class NoteEditorActivity : Activity() {
     private lateinit var colors: AppColors
     private lateinit var titleInput: EditText
     private lateinit var bodyInput: EditText
+    private lateinit var speech: SpeechToTextController
+    private var speechButton: Button? = null
     private var noteId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,6 +34,9 @@ class NoteEditorActivity : Activity() {
         window.statusBarColor = colors.background
         window.navigationBarColor = colors.background
         store = NoteStore(this)
+        speech = SpeechToTextController(this) { listening ->
+            speechButton?.text = if (listening) "■" else "🎙"
+        }
         noteId = intent?.getStringExtra(CopyNoteReceiver.EXTRA_NOTE_ID)
         buildUi(store.get(noteId.orEmpty()))
     }
@@ -143,6 +150,7 @@ class NoteEditorActivity : Activity() {
 
         root.addView(header)
         root.addView(titleInput, LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
+        root.addView(speechRow, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(bodyInput, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
             setMargins(0, dp(10), 0, 0)
         })
