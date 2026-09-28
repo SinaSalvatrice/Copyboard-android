@@ -360,6 +360,62 @@ button {
   gap: 8px;
 }
 
+.speech-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 0 2px;
+}
+
+.speech-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 9px 14px;
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.speech-button:hover {
+  border-color: var(--accent);
+}
+
+.speech-button.is-listening {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.speech-language {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.speech-language > span {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.speech-language select {
+  min-width: 76px;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: rgba(16, 24, 34, 0.95);
+  color: var(--text);
+}
+
+.speech-error {
+  align-self: center;
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
 .checklist-editor {
   display: grid;
   gap: 10px;
