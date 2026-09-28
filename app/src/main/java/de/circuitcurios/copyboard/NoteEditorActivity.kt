@@ -84,6 +84,38 @@ class NoteEditorActivity : Activity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))
         }
 
+        val speechRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        val speechLanguage = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@NoteEditorActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                SpeechToTextController.LANGUAGE_OPTIONS.map { it.first }
+            )
+            setSelection(speech.currentLanguageIndex())
+            contentDescription = "Diktatsprache"
+        }
+
+        val dictateButton = Button(this).apply {
+            text = "🎙"
+            contentDescription = "Diktieren"
+            setTextColor(colors.accent)
+            setOnClickListener {
+                speech.selectLanguage(speechLanguage.selectedItemPosition)
+                speech.toggle(bodyInput, "\n")
+            }
+        }
+        speechButton = dictateButton
+
+        speechRow.addView(speechLanguage, LinearLayout.LayoutParams(dp(88), dp(48)))
+        speechRow.addView(dictateButton, LinearLayout.LayoutParams(dp(64), dp(48)).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+
         val buttonRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -118,6 +150,20 @@ class NoteEditorActivity : Activity() {
         setContentView(root)
 
         titleInput.requestFocus()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speech.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    override fun onDestroy() {
+        speech.destroy()
+        super.onDestroy()
     }
 
     private fun saveNote() {
