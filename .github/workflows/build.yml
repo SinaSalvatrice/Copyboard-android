@@ -43,7 +43,8 @@ jobs:
           echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
 
       - name: Install Android platform
-        run: "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+        run: |
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
