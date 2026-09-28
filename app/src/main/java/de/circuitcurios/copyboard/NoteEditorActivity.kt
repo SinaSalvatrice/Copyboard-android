@@ -9,9 +9,11 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import java.util.UUID
@@ -22,6 +24,8 @@ class NoteEditorActivity : Activity() {
     private lateinit var colors: AppColors
     private lateinit var titleInput: EditText
     private lateinit var bodyInput: EditText
+    private lateinit var speech: SpeechToTextController
+    private var speechButton: Button? = null
     private var noteId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,6 +34,9 @@ class NoteEditorActivity : Activity() {
         window.statusBarColor = colors.background
         window.navigationBarColor = colors.background
         store = NoteStore(this)
+        speech = SpeechToTextController(this) { listening ->
+            speechButton?.text = if (listening) "■" else "🎙"
+        }
         noteId = intent?.getStringExtra(CopyNoteReceiver.EXTRA_NOTE_ID)
         buildUi(store.get(noteId.orEmpty()))
     }
@@ -84,6 +91,38 @@ class NoteEditorActivity : Activity() {
             setPadding(dp(12), dp(12), dp(12), dp(12))
         }
 
+        val speechRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            setPadding(0, dp(8), 0, 0)
+        }
+
+        val speechLanguage = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@NoteEditorActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                SpeechToTextController.LANGUAGE_OPTIONS.map { it.first }
+            )
+            setSelection(speech.currentLanguageIndex())
+            contentDescription = "Diktatsprache"
+        }
+
+        val dictateButton = Button(this).apply {
+            text = "🎙"
+            contentDescription = "Diktieren"
+            setTextColor(colors.accent)
+            setOnClickListener {
+                speech.selectLanguage(speechLanguage.selectedItemPosition)
+                speech.toggle(bodyInput, "\n")
+            }
+        }
+        speechButton = dictateButton
+
+        speechRow.addView(speechLanguage, LinearLayout.LayoutParams(dp(88), dp(48)))
+        speechRow.addView(dictateButton, LinearLayout.LayoutParams(dp(64), dp(48)).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+
         val buttonRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -111,6 +150,7 @@ class NoteEditorActivity : Activity() {
 
         root.addView(header)
         root.addView(titleInput, LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
+        root.addView(speechRow, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(bodyInput, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f).apply {
             setMargins(0, dp(10), 0, 0)
         })
@@ -118,6 +158,20 @@ class NoteEditorActivity : Activity() {
         setContentView(root)
 
         titleInput.requestFocus()
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speech.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    override fun onDestroy() {
+        speech.destroy()
+        super.onDestroy()
     }
 
     private fun saveNote() {

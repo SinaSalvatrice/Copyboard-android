@@ -40,6 +40,8 @@ class MainActivity : Activity() {
     private lateinit var groupFilterContainer: LinearLayout
     private lateinit var searchInput: EditText
     private lateinit var colors: AppColors
+    private lateinit var speech: SpeechToTextController
+    private var speechButton: Button? = null
     private var snippets: MutableList<Snippet> = mutableListOf()
     private var groups: MutableList<String> = mutableListOf()
     private var folders: MutableList<String> = mutableListOf()
@@ -53,6 +55,9 @@ class MainActivity : Activity() {
         window.statusBarColor = colors.background
         window.navigationBarColor = colors.background
         store = SnippetStore(this)
+        speech = SpeechToTextController(this) { listening ->
+            speechButton?.text = if (listening) "■" else "🎙"
+        }
         snippets = store.getAll()
         groups = store.getGroups()
         folders = store.getFolders()
@@ -90,6 +95,20 @@ class MainActivity : Activity() {
                 askLoadFromSyncFile()
             }
         }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speech.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    override fun onDestroy() {
+        speech.destroy()
+        super.onDestroy()
     }
 
     private fun buildUi() {
@@ -435,6 +454,41 @@ class MainActivity : Activity() {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
 
+        val speechRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+        }
+
+        val speechLanguage = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                SpeechToTextController.LANGUAGE_OPTIONS.map { it.first }
+            )
+            setSelection(speech.currentLanguageIndex())
+            contentDescription = "Diktatsprache"
+        }
+
+        val dictateButton = Button(this).apply {
+            text = "🎙"
+            contentDescription = "Diktieren"
+            setTextColor(colors.accent)
+            setOnClickListener {
+                speech.selectLanguage(speechLanguage.selectedItemPosition)
+                val checklistMode = modeSpinner.selectedItemPosition == 1
+                speech.toggle(
+                    if (checklistMode) checklistInput else textInput,
+                    if (checklistMode) "\n" else " "
+                )
+            }
+        }
+        speechButton = dictateButton
+
+        speechRow.addView(speechLanguage, LinearLayout.LayoutParams(dp(88), dp(48)))
+        speechRow.addView(dictateButton, LinearLayout.LayoutParams(dp(64), dp(48)).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+
         val favoriteBox = CheckBox(this).apply {
             text = "Favorit / im Widget anzeigen"
             setTextColor(colors.textPrimary)
@@ -444,6 +498,7 @@ class MainActivity : Activity() {
         layout.addView(titleInput)
         layout.addView(categorySpinner)
         layout.addView(modeSpinner)
+        layout.addView(speechRow)
         layout.addView(textInput)
         layout.addView(checklistInput)
         layout.addView(favoriteBox)
@@ -502,6 +557,11 @@ class MainActivity : Activity() {
                 }
                 dialog.dismiss()
             }
+        }
+
+        dialog.setOnDismissListener {
+            if (speech.isListening) speech.stop()
+            speechButton = null
         }
 
         dialog.show()
