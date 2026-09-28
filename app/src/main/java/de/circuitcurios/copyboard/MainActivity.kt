@@ -40,6 +40,8 @@ class MainActivity : Activity() {
     private lateinit var groupFilterContainer: LinearLayout
     private lateinit var searchInput: EditText
     private lateinit var colors: AppColors
+    private lateinit var speech: SpeechToTextController
+    private var speechButton: Button? = null
     private var snippets: MutableList<Snippet> = mutableListOf()
     private var groups: MutableList<String> = mutableListOf()
     private var folders: MutableList<String> = mutableListOf()
@@ -53,6 +55,9 @@ class MainActivity : Activity() {
         window.statusBarColor = colors.background
         window.navigationBarColor = colors.background
         store = SnippetStore(this)
+        speech = SpeechToTextController(this) { listening ->
+            speechButton?.text = if (listening) "■" else "🎙"
+        }
         snippets = store.getAll()
         groups = store.getGroups()
         folders = store.getFolders()
@@ -493,6 +498,7 @@ class MainActivity : Activity() {
         layout.addView(titleInput)
         layout.addView(categorySpinner)
         layout.addView(modeSpinner)
+        layout.addView(speechRow)
         layout.addView(textInput)
         layout.addView(checklistInput)
         layout.addView(favoriteBox)
