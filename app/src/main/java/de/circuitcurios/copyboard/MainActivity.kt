@@ -92,6 +92,20 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        speech.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    override fun onDestroy() {
+        speech.destroy()
+        super.onDestroy()
+    }
+
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -435,6 +449,41 @@ class MainActivity : Activity() {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
 
+        val speechRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+        }
+
+        val speechLanguage = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                SpeechToTextController.LANGUAGE_OPTIONS.map { it.first }
+            )
+            setSelection(speech.currentLanguageIndex())
+            contentDescription = "Diktatsprache"
+        }
+
+        val dictateButton = Button(this).apply {
+            text = "🎙"
+            contentDescription = "Diktieren"
+            setTextColor(colors.accent)
+            setOnClickListener {
+                speech.selectLanguage(speechLanguage.selectedItemPosition)
+                val checklistMode = modeSpinner.selectedItemPosition == 1
+                speech.toggle(
+                    if (checklistMode) checklistInput else textInput,
+                    if (checklistMode) "\n" else " "
+                )
+            }
+        }
+        speechButton = dictateButton
+
+        speechRow.addView(speechLanguage, LinearLayout.LayoutParams(dp(88), dp(48)))
+        speechRow.addView(dictateButton, LinearLayout.LayoutParams(dp(64), dp(48)).apply {
+            setMargins(dp(8), 0, 0, 0)
+        })
+
         val favoriteBox = CheckBox(this).apply {
             text = "Favorit / im Widget anzeigen"
             setTextColor(colors.textPrimary)
@@ -502,6 +551,11 @@ class MainActivity : Activity() {
                 }
                 dialog.dismiss()
             }
+        }
+
+        dialog.setOnDismissListener {
+            if (speech.isListening) speech.stop()
+            speechButton = null
         }
 
         dialog.show()
