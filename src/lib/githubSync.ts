@@ -42,18 +42,55 @@ function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
     checklistItems,
     category: snippet.category?.trim() || 'General',
     favorite: Boolean(snippet.favorite),
-    updatedAt: snippet.updatedAt ?? new Date().toISOString(),
-    deleted: snippet.deleted,
+    updatedAt: snippet.updatedAt ?? new Date(0).toISOString(),
+    deleted: Boolean(snippet.deleted),
   };
 }
 
-function toPayload(snippets: Snippet[]): SyncPayload {
+function normalizeNames(values: string[] | undefined) {
+  return Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeGroupFolders(
+  value: Record<string, string | null> | undefined,
+  groups: string[],
+  folders: string[],
+) {
+  const validGroups = new Set(groups);
+  const validFolders = new Set(folders);
+  const result: Record<string, string | null> = {};
+
+  for (const group of groups) {
+    const folder = value?.[group] ?? null;
+    result[group] = folder && validGroups.has(group) && validFolders.has(folder) ? folder : null;
+  }
+
+  return result;
+}
+
+function payloadMetadata(base: SyncPayload | null | undefined, snippets: Snippet[]) {
+  const activeCategories = snippets
+    .filter((snippet) => !snippet.deleted)
+    .map((snippet) => snippet.category);
+  const groups = normalizeNames([...(base?.groups ?? []), ...activeCategories]);
+  if (!groups.some((group) => group.toLowerCase() === 'general')) {
+    groups.push('General');
+    groups.sort((left, right) => left.localeCompare(right));
+  }
+  const folders = normalizeNames(base?.folders);
+  const groupFolders = normalizeGroupFolders(base?.groupFolders, groups, folders);
+  return { groups, folders, groupFolders };
+}
+
+function toPayload(snippets: Snippet[], base?: SyncPayload | null): SyncPayload {
+  const normalized = snippets.map((snippet) => normalizeSnippet(snippet));
+  const metadata = payloadMetadata(base, normalized);
   return {
-    version: 1,
+    version: 2,
     updatedAt: new Date().toISOString(),
-    snippets: snippets.map((snippet) => ({
-      ...normalizeSnippet(snippet),
-    })),
+    snippets: normalized,
+    ...metadata,
   };
 }
 
@@ -67,22 +104,29 @@ function parsePayload(raw: string): SyncPayload {
   }
 
   if (Array.isArray(parsed)) {
-    return {
-      version: 1,
-      updatedAt: new Date().toISOString(),
-      snippets: parsed.map((snippet) => normalizeSnippet(snippet as Partial<Snippet>)),
-    };
+    return toPayload(parsed.map((snippet) => normalizeSnippet(snippet as Partial<Snippet>)));
   }
 
-  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as SyncPayload).snippets)) {
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Partial<SyncPayload>).snippets)) {
     throw new GitHubSyncError('invalid-json', 'Remote JSON does not contain a valid snippets array.');
   }
 
-  const payload = parsed as SyncPayload;
+  const rawPayload = parsed as Partial<SyncPayload>;
+  const snippets = (rawPayload.snippets ?? []).map((snippet) => normalizeSnippet(snippet));
+  const metadata = payloadMetadata({
+    version: rawPayload.version ?? 1,
+    updatedAt: rawPayload.updatedAt ?? new Date(0).toISOString(),
+    snippets,
+    groups: rawPayload.groups ?? [],
+    folders: rawPayload.folders ?? [],
+    groupFolders: rawPayload.groupFolders ?? {},
+  }, snippets);
+
   return {
-    version: typeof payload.version === 'number' ? payload.version : 1,
-    updatedAt: payload.updatedAt ?? new Date().toISOString(),
-    snippets: payload.snippets.map((snippet) => normalizeSnippet(snippet)),
+    version: typeof rawPayload.version === 'number' ? rawPayload.version : 1,
+    updatedAt: rawPayload.updatedAt ?? new Date(0).toISOString(),
+    snippets,
+    ...metadata,
   };
 }
 
@@ -164,37 +208,43 @@ async function getRemoteFile(settings: GitHubSyncSettings): Promise<RemoteFile> 
   }
 }
 
-export function mergeSnippets(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
+function sortSnippets(snippets: Snippet[]) {
+  return [...snippets].sort((left, right) => {
+    if (left.favorite !== right.favorite) {
+      return left.favorite ? -1 : 1;
+    }
+    return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+  });
+}
+
+function mergeSnippetsWithTombstones(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
   const merged = new Map<string, Snippet>();
 
   const mergeOne = (snippet: Snippet) => {
-    const current = merged.get(snippet.id);
+    const candidate = normalizeSnippet(snippet);
+    const current = merged.get(candidate.id);
     if (!current) {
-      merged.set(snippet.id, normalizeSnippet(snippet));
+      merged.set(candidate.id, candidate);
       return;
     }
 
-    const currentTime = Date.parse(current.updatedAt || '1970-01-01T00:00:00.000Z');
-    const nextTime = Date.parse(snippet.updatedAt || '1970-01-01T00:00:00.000Z');
-    if (Number.isNaN(nextTime) || currentTime >= nextTime) {
+    const currentTime = Date.parse(current.updatedAt || new Date(0).toISOString());
+    const nextTime = Date.parse(candidate.updatedAt || new Date(0).toISOString());
+    if (Number.isNaN(nextTime) || currentTime > nextTime) {
       return;
     }
 
-    merged.set(snippet.id, normalizeSnippet(snippet));
+    merged.set(candidate.id, candidate);
   };
 
   localSnippets.forEach(mergeOne);
   remoteSnippets.forEach(mergeOne);
+  return sortSnippets(Array.from(merged.values()));
+}
 
-  return Array.from(merged.values())
-    .filter((snippet) => !snippet.deleted)
-    .sort((left, right) => {
-      if (left.favorite !== right.favorite) {
-        return left.favorite ? -1 : 1;
-      }
-
-      return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-    });
+export function mergeSnippets(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
+  return mergeSnippetsWithTombstones(localSnippets, remoteSnippets)
+    .filter((snippet) => !snippet.deleted);
 }
 
 export async function pullFromGitHub(settings: GitHubSyncSettings, localSnippets: Snippet[]) {
@@ -208,9 +258,11 @@ export async function pullFromGitHub(settings: GitHubSyncSettings, localSnippets
 
 export async function pushToGitHub(settings: GitHubSyncSettings, snippets: Snippet[]) {
   const remote = await getRemoteFile(settings);
+  const remoteTombstones = remote.payload?.snippets.filter((snippet) => snippet.deleted) ?? [];
+  const outgoing = mergeSnippetsWithTombstones(snippets, remoteTombstones);
   const payload = {
     message: 'Sync Copyboard snippets',
-    content: encodeBase64(JSON.stringify(toPayload(snippets), null, 2)),
+    content: encodeBase64(JSON.stringify(toPayload(outgoing, remote.payload), null, 2)),
     branch: settings.branch,
     ...(remote.sha ? { sha: remote.sha } : {}),
   };
@@ -223,10 +275,10 @@ export async function pushToGitHub(settings: GitHubSyncSettings, snippets: Snipp
 
 export async function syncWithGitHub(settings: GitHubSyncSettings, localSnippets: Snippet[]) {
   const remote = await getRemoteFile(settings);
-  const merged = mergeSnippets(localSnippets, remote.payload?.snippets ?? []);
+  const mergedWithTombstones = mergeSnippetsWithTombstones(localSnippets, remote.payload?.snippets ?? []);
   const payload = {
     message: 'Sync Copyboard snippets',
-    content: encodeBase64(JSON.stringify(toPayload(merged), null, 2)),
+    content: encodeBase64(JSON.stringify(toPayload(mergedWithTombstones, remote.payload), null, 2)),
     branch: settings.branch,
     ...(remote.sha ? { sha: remote.sha } : {}),
   };
@@ -236,5 +288,5 @@ export async function syncWithGitHub(settings: GitHubSyncSettings, localSnippets
     body: JSON.stringify(payload),
   });
 
-  return merged;
+  return mergedWithTombstones.filter((snippet) => !snippet.deleted);
 }
