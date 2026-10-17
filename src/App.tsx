@@ -24,39 +24,28 @@ function sortSnippets(snippets: Snippet[]) {
     if (left.favorite !== right.favorite) {
       return left.favorite ? -1 : 1;
     }
-
     return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
   });
 }
 
-function matchesQuery(snippet: Snippet, query: string) {
-  if (!query.trim()) {
-    return true;
-  }
+function activeSnippets(snippets: Snippet[]) {
+  return sortSnippets(snippets.filter((snippet) => !snippet.deleted));
+}
 
-  const lowered = query.trim().toLowerCase();
-  return snippetSearchText(snippet).includes(lowered);
+function matchesQuery(snippet: Snippet, query: string) {
+  if (!query.trim()) return true;
+  return snippetSearchText(snippet).includes(query.trim().toLowerCase());
 }
 
 function matchesCategory(snippet: Snippet, category: CategoryFilter) {
-  if (category === 'all') {
-    return true;
-  }
-
-  if (category === 'favorites') {
-    return snippet.favorite;
-  }
-
+  if (category === 'all') return true;
+  if (category === 'favorites') return snippet.favorite;
   return snippet.category === category;
 }
 
 function syncErrorMessage(error: unknown) {
-  if (error instanceof GitHubSyncError) {
-    return error.message;
-  }
-  if (error instanceof Error) {
-    return error.message;
-  }
+  if (error instanceof GitHubSyncError) return error.message;
+  if (error instanceof Error) return error.message;
   return 'An unknown error occurred.';
 }
 
@@ -65,10 +54,7 @@ function toTauriShortcut(hotkey: string) {
 }
 
 function resolveTheme(mode: 'system' | 'light' | 'dark') {
-  if (mode !== 'system') {
-    return mode;
-  }
-
+  if (mode !== 'system') return mode;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
@@ -93,21 +79,28 @@ export default function App() {
   const [moveToGroup, setMoveToGroup] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
 
+  const chooseSelection = (incoming: StoredData, preferredId: string | null) => {
+    const visible = activeSnippets(incoming.snippets);
+    const match = preferredId ? visible.find((snippet) => snippet.id === preferredId) : null;
+    const next = match ?? visible[0] ?? null;
+    setSelectedId(next?.id ?? null);
+    setEditorSnippet(next ?? createEmptySnippet());
+  };
+
   useEffect(() => {
     void loadStoredData().then((loaded) => {
       setData(loaded);
-      setSelectedId(loaded.snippets[0]?.id ?? null);
-      setEditorSnippet(loaded.snippets[0] ?? createEmptySnippet());
+      chooseSelection(loaded, null);
     });
 
     const unsubscribe = subscribeState((incoming) => {
       setData(incoming);
-      if (selectedId) {
-        const match = incoming.snippets.find((snippet) => snippet.id === selectedId);
-        if (match) {
-          setEditorSnippet(match);
-        }
-      }
+      setSelectedId((current) => {
+        const visible = activeSnippets(incoming.snippets);
+        const next = visible.find((snippet) => snippet.id === current) ?? visible[0] ?? null;
+        setEditorSnippet(next ?? createEmptySnippet());
+        return next?.id ?? null;
+      });
     });
 
     const unlistenPromise = listen('copyboard://sync-request', async () => {
@@ -121,10 +114,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!data || currentLabel !== 'main') {
-      return;
-    }
-
+    if (!data || currentLabel !== 'main') return;
     const hotkey = toTauriShortcut(data.preferences.hotkey);
     let disposed = false;
 
@@ -136,9 +126,7 @@ export default function App() {
           });
         }
       } catch {
-        if (!disposed) {
-          setStatus(`Unable to register global hotkey ${data.preferences.hotkey}.`);
-        }
+        if (!disposed) setStatus(`Unable to register global hotkey ${data.preferences.hotkey}.`);
       }
     })();
 
@@ -149,45 +137,26 @@ export default function App() {
   }, [data]);
 
   useEffect(() => {
-    if (!data) {
-      return;
-    }
-
+    if (!data) return;
     const apply = () => {
-      const theme = resolveTheme(data.preferences.themeMode);
-      document.documentElement.dataset.theme = theme;
+      document.documentElement.dataset.theme = resolveTheme(data.preferences.themeMode);
     };
-
     apply();
-
-    if (data.preferences.themeMode !== 'system') {
-      return;
-    }
-
+    if (data.preferences.themeMode !== 'system') return;
     const query = window.matchMedia('(prefers-color-scheme: dark)');
-    const listener = () => apply();
-    query.addEventListener('change', listener);
-
-    return () => {
-      query.removeEventListener('change', listener);
-    };
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
   }, [data]);
 
   useEffect(() => {
-    if (currentLabel !== 'main') {
-      return;
-    }
-
+    if (currentLabel !== 'main') return;
     void isAutostartEnabled()
-      .then((enabled) => setAutostartEnabled(enabled))
+      .then(setAutostartEnabled)
       .catch(() => setStatus('Autostart state is unavailable.'));
   }, []);
 
   useEffect(() => {
-    if (!showSettings) {
-      return;
-    }
-
+    if (!showSettings) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
@@ -196,41 +165,23 @@ export default function App() {
   }, [showSettings]);
 
   useEffect(() => {
-    if (currentLabel !== 'main') {
-      return;
-    }
-
+    if (currentLabel !== 'main') return;
     const unlistenPromise = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
-      if (focused) {
-        return;
-      }
-
+      if (focused) return;
       void getCurrentWindow().isMinimized().then((minimized) => {
-        if (minimized) {
-          void invoke('show_floating_window');
-        }
+        if (minimized) void invoke('show_floating_window');
       });
     });
-
     return () => {
       void unlistenPromise.then((unlisten) => unlisten());
     };
   }, []);
 
   useEffect(() => {
-    if (!data || data.groups.length === 0) {
-      return;
-    }
-
+    if (!data || data.groups.length === 0) return;
     setRenameFromGroup((current) => (data.groups.includes(current) ? current : data.groups[0]));
     setMoveFromGroup((current) => (data.groups.includes(current) ? current : data.groups[0]));
-    setMoveToGroup((current) => {
-      if (data.groups.includes(current)) {
-        return current;
-      }
-
-      return data.groups[1] ?? data.groups[0];
-    });
+    setMoveToGroup((current) => (data.groups.includes(current) ? current : (data.groups[1] ?? data.groups[0])));
   }, [data]);
 
   const persist = async (nextData: StoredData) => {
@@ -245,100 +196,65 @@ export default function App() {
   };
 
   const handleCopy = async (snippet: Snippet) => {
+    if (snippet.deleted) return;
     try {
       await writeText(snippetClipboardText(snippet));
       setCopiedId(snippet.id);
       setStatus(`Copied "${snippet.title}".`);
       window.setTimeout(() => setCopiedId((current) => (current === snippet.id ? null : current)), 1200);
-
-      if (data) {
-        const nextData = recordSnippetUsage(data, snippet.id);
-        await persist(nextData);
-      }
+      if (data) await persist(recordSnippetUsage(data, snippet.id));
     } catch {
       setStatus('Clipboard write failed.');
     }
   };
 
   const handleSave = async () => {
-    if (!data) {
-      return;
-    }
-
+    if (!data) return;
     const validCategory = data.groups.includes(editorSnippet.category)
       ? editorSnippet.category
       : (data.groups[0] ?? 'General');
-    const sanitizedSnippet = {
-      ...editorSnippet,
-      category: validCategory,
-    };
-
+    const sanitizedSnippet = { ...editorSnippet, category: validCategory, deleted: false };
     const nextSnippets = upsertSnippet(data.snippets, sanitizedSnippet);
-    const nextData = {
-      ...data,
-      snippets: sortSnippets(nextSnippets),
-    };
+    const nextData = { ...data, snippets: sortSnippets(nextSnippets) };
     await persist(nextData);
     setStatus('Snippet saved.');
-    const saved = nextData.snippets.find((snippet) => snippet.id === sanitizedSnippet.id);
-    if (saved) {
-      selectSnippet(saved);
-    }
+    const saved = nextData.snippets.find((snippet) => snippet.id === sanitizedSnippet.id && !snippet.deleted);
+    if (saved) selectSnippet(saved);
   };
 
   const handleDelete = async () => {
-    if (!data || !selectedId) {
-      return;
-    }
-
+    if (!data || !selectedId) return;
     const nextSnippets = removeSnippet(data.snippets, selectedId);
-    const nextSelected = nextSnippets[0] ?? createEmptySnippet();
-    const nextData = {
-      ...data,
-      snippets: nextSnippets,
-    };
+    const nextData = { ...data, snippets: nextSnippets };
+    const nextSelected = activeSnippets(nextSnippets)[0] ?? null;
     await persist(nextData);
-    setSelectedId(nextSnippets[0]?.id ?? null);
-    setEditorSnippet(nextSelected);
+    setSelectedId(nextSelected?.id ?? null);
+    setEditorSnippet(nextSelected ?? createEmptySnippet());
     setStatus('Snippet deleted.');
   };
 
   const handleNew = () => {
     setSelectedId(null);
-    const draft = createEmptySnippet();
     setEditorSnippet({
-      ...draft,
+      ...createEmptySnippet(),
       category: data?.groups[0] ?? 'General',
     });
   };
 
   const handleCreateGroup = async () => {
-    if (!data) {
-      return;
-    }
-
+    if (!data) return;
     const candidate = normalizeGroupName(newGroupName);
     if (!candidate) {
       setStatus('Group name is required.');
       return;
     }
-
     if (data.groups.some((group) => group.toLowerCase() === candidate.toLowerCase())) {
       setStatus('Group already exists.');
       return;
     }
-
     const nextGroups = [...data.groups, candidate].sort((left, right) => left.localeCompare(right));
-    const nextData = {
-      ...data,
-      groups: nextGroups,
-    };
-
-    await persist(nextData);
-    setEditorSnippet((current) => ({
-      ...current,
-      category: selectedId ? current.category : candidate,
-    }));
+    await persist({ ...data, groups: nextGroups, groupFolders: { ...data.groupFolders, [candidate]: null } });
+    setEditorSnippet((current) => ({ ...current, category: selectedId ? current.category : candidate }));
     setNewGroupName('');
     setStatus(`Group "${candidate}" created.`);
   };
@@ -354,17 +270,14 @@ export default function App() {
       setStatus('Folder already exists.');
       return;
     }
-    await persist({ ...data, folders: [...data.folders, candidate].sort((a, b) => a.localeCompare(b)) });
+    await persist({ ...data, folders: [...data.folders, candidate].sort((left, right) => left.localeCompare(right)) });
     setNewFolderName('');
     setStatus(`Folder "${candidate}" created.`);
   };
 
   const handleAssignFolder = async (group: string, folder: string) => {
     if (!data) return;
-    await persist({
-      ...data,
-      groupFolders: { ...data.groupFolders, [group]: folder || null },
-    });
+    await persist({ ...data, groupFolders: { ...data.groupFolders, [group]: folder || null } });
     setStatus(folder ? `Group "${group}" moved to "${folder}".` : `Group "${group}" removed from its folder.`);
   };
 
@@ -382,142 +295,91 @@ export default function App() {
   };
 
   const handleDeleteGroup = async (group: string) => {
-    if (!data) {
-      return;
-    }
-
+    if (!data) return;
     if (data.groups.length <= 1) {
       setStatus('At least one group is required.');
       return;
     }
-
-    if (data.snippets.some((snippet) => snippet.category === group)) {
+    if (data.snippets.some((snippet) => !snippet.deleted && snippet.category === group)) {
       setStatus('Group is in use. Move snippets before deleting it.');
       return;
     }
-
     const nextGroups = data.groups.filter((item) => item !== group);
-    const nextDefaultGroup = nextGroups[0] ?? 'General';
-    const nextData = {
-      ...data,
-      groups: nextGroups,
-    };
-
-    await persist(nextData);
-    if (category === group) {
-      setCategory('all');
-    }
+    const { [group]: _removed, ...nextGroupFolders } = data.groupFolders;
+    await persist({ ...data, groups: nextGroups, groupFolders: nextGroupFolders });
+    if (category === group) setCategory('all');
     setEditorSnippet((current) => ({
       ...current,
-      category: current.category === group ? nextDefaultGroup : current.category,
+      category: current.category === group ? (nextGroups[0] ?? 'General') : current.category,
     }));
     setStatus(`Group "${group}" deleted.`);
   };
 
   const handleRenameGroup = async () => {
-    if (!data) {
-      return;
-    }
-
+    if (!data) return;
     const source = renameFromGroup;
     const target = normalizeGroupName(renameToGroup);
-
     if (!source) {
       setStatus('Select a group to rename.');
       return;
     }
-
     if (!target) {
       setStatus('New group name is required.');
       return;
     }
-
     if (source.toLowerCase() === target.toLowerCase()) {
       setStatus('New group name must be different.');
       return;
     }
-
     if (data.groups.some((group) => group.toLowerCase() === target.toLowerCase())) {
       setStatus('Target group name already exists.');
       return;
     }
 
     const now = new Date().toISOString();
-    const nextGroups = data.groups
-      .map((group) => (group === source ? target : group))
-      .sort((left, right) => left.localeCompare(right));
+    const nextGroups = data.groups.map((group) => (group === source ? target : group)).sort((a, b) => a.localeCompare(b));
     const nextSnippets = data.snippets.map((snippet) => (
-      snippet.category === source
+      !snippet.deleted && snippet.category === source
         ? { ...snippet, category: target, updatedAt: now }
         : snippet
     ));
-
-    const nextData = {
-      ...data,
-      groups: nextGroups,
-      groupFolders: Object.fromEntries(Object.entries(data.groupFolders).map(([group, folder]) => [
-        group === source ? target : group,
-        folder,
-      ])),
-      snippets: sortSnippets(nextSnippets),
-    };
-
-    await persist(nextData);
-    if (category === source) {
-      setCategory(target);
-    }
-    setEditorSnippet((current) => ({
-      ...current,
-      category: current.category === source ? target : current.category,
-    }));
+    const nextGroupFolders = Object.fromEntries(Object.entries(data.groupFolders).map(([group, folder]) => [
+      group === source ? target : group,
+      folder,
+    ]));
+    await persist({ ...data, groups: nextGroups, groupFolders: nextGroupFolders, snippets: sortSnippets(nextSnippets) });
+    if (category === source) setCategory(target);
+    setEditorSnippet((current) => ({ ...current, category: current.category === source ? target : current.category }));
     setRenameToGroup('');
     setStatus(`Group "${source}" renamed to "${target}".`);
   };
 
   const handleMoveGroupSnippets = async () => {
-    if (!data) {
-      return;
-    }
-
+    if (!data) return;
     const source = moveFromGroup;
     const target = moveToGroup;
-
     if (!source || !target) {
       setStatus('Select source and target groups.');
       return;
     }
-
     if (source === target) {
       setStatus('Source and target groups must be different.');
       return;
     }
-
-    const affected = data.snippets.filter((snippet) => snippet.category === source).length;
+    const affected = data.snippets.filter((snippet) => !snippet.deleted && snippet.category === source).length;
     if (affected === 0) {
       setStatus('No snippets to move for this group.');
       return;
     }
-
     const now = new Date().toISOString();
     const nextSnippets = data.snippets.map((snippet) => (
-      snippet.category === source
+      !snippet.deleted && snippet.category === source
         ? { ...snippet, category: target, updatedAt: now }
         : snippet
     ));
-
-    const nextData = {
-      ...data,
-      snippets: sortSnippets(nextSnippets),
-    };
-
-    await persist(nextData);
-    if (category === source) {
-      setCategory(target);
-    }
-    setEditorSnippet((current) => ({
-      ...current,
-      category: current.category === source ? target : current.category,
-    }));
+    await persist({ ...data, snippets: sortSnippets(nextSnippets) });
+    if (category === source) setCategory(target);
+    setEditorSnippet((current) => ({ ...current, category: current.category === source ? target : current.category }));
     setStatus(`Moved ${affected} snippet(s) from "${source}" to "${target}".`);
   };
 
@@ -531,11 +393,8 @@ export default function App() {
     floatingIconOpacity: number,
     floatingHoverDelayMs: number,
   ) => {
-    if (!data) {
-      return;
-    }
-
-    const nextData = {
+    if (!data) return;
+    const nextData: StoredData = {
       ...data,
       syncSettings: {
         ...settings,
@@ -552,18 +411,13 @@ export default function App() {
         floatingHoverDelayMs,
       },
     };
-
     try {
-      if (enableLaunchOnStartup) {
-        await enableAutostart();
-      } else {
-        await disableAutostart();
-      }
+      if (enableLaunchOnStartup) await enableAutostart();
+      else await disableAutostart();
       setAutostartEnabled(enableLaunchOnStartup);
     } catch {
       setStatus('Settings saved, but autostart could not be updated.');
     }
-
     await persist(nextData);
     setShowSettings(false);
     setStatus('Settings saved.');
@@ -574,35 +428,35 @@ export default function App() {
       setStatus('GitHub sync is incomplete. Configure owner, repo, branch, path, and token first.');
       return false;
     }
-
     return true;
   };
 
-  const handlePull = async () => {
-    if (!data || !ensureSyncReady()) {
-      return;
-    }
+  const applySyncResult = async (result: Pick<StoredData, 'snippets' | 'groups' | 'folders' | 'groupFolders'>, message: string) => {
+    if (!data) return;
+    const nextData: StoredData = {
+      ...data,
+      ...result,
+      snippets: sortSnippets(result.snippets),
+    };
+    await persist(nextData);
+    chooseSelection(nextData, selectedId);
+    setStatus(message);
+  };
 
+  const handlePull = async () => {
+    if (!data || !ensureSyncReady()) return;
     try {
-      const merged = await pullFromGitHub(data.syncSettings, data.snippets);
-      const nextData = {
-        ...data,
-        snippets: sortSnippets(merged),
-      };
-      await persist(nextData);
-      setStatus('Pull successful. Local snippets merged with GitHub.');
+      const merged = await pullFromGitHub(data.syncSettings, data);
+      await applySyncResult(merged, 'Pull successful. Local data merged with GitHub.');
     } catch (error) {
       setStatus(syncErrorMessage(error));
     }
   };
 
   const handlePush = async () => {
-    if (!data || !ensureSyncReady()) {
-      return;
-    }
-
+    if (!data || !ensureSyncReady()) return;
     try {
-      await pushToGitHub(data.syncSettings, data.snippets);
+      await pushToGitHub(data.syncSettings, data);
       setStatus('Push successful. copyboard-sync.json updated on GitHub.');
     } catch (error) {
       setStatus(syncErrorMessage(error));
@@ -610,61 +464,35 @@ export default function App() {
   };
 
   async function handleSync() {
-    if (!data || !ensureSyncReady()) {
-      return;
-    }
-
+    if (!data || !ensureSyncReady()) return;
     try {
-      const merged = await syncWithGitHub(data.syncSettings, data.snippets);
-      const nextData = {
-        ...data,
-        snippets: sortSnippets(merged),
-      };
-      await persist(nextData);
-      setStatus('Sync successful. Pulled, merged, and pushed snippets.');
+      const merged = await syncWithGitHub(data.syncSettings, data);
+      await applySyncResult(merged, 'Sync successful. Snippets and collections merged with GitHub.');
     } catch (error) {
       setStatus(syncErrorMessage(error));
     }
   }
 
   const handleFloatingPin = async (pinned: boolean) => {
-    if (!data) {
-      return;
-    }
-
-    const nextData = {
-      ...data,
-      preferences: {
-        ...data.preferences,
-        floatingPinned: pinned,
-      },
-    };
-    await persist(nextData);
+    if (!data) return;
+    await persist({ ...data, preferences: { ...data.preferences, floatingPinned: pinned } });
   };
 
   const handleFloatingPosition = async (x: number, y: number) => {
-    if (!data) {
-      return;
-    }
-
-    const nextData = {
-      ...data,
-      preferences: {
-        ...data.preferences,
-        floatingPosition: { x, y },
-      },
-    };
-    await persist(nextData);
+    if (!data) return;
+    await persist({ ...data, preferences: { ...data.preferences, floatingPosition: { x, y } } });
   };
 
   if (!data) {
     return <div className="app-shell app-shell--loading">Loading Copyboard…</div>;
   }
 
+  const visibleActiveSnippets = activeSnippets(data.snippets);
+
   if (currentLabel === 'floating') {
     return (
       <FloatingWindow
-        snippets={sortSnippets(data.snippets)}
+        snippets={visibleActiveSnippets}
         preferences={data.preferences}
         copiedId={copiedId}
         onCopy={handleCopy}
@@ -676,7 +504,7 @@ export default function App() {
   }
 
   const categories = data.groups;
-  const visibleSnippets = sortSnippets(data.snippets)
+  const visibleSnippets = visibleActiveSnippets
     .filter((snippet) => matchesCategory(snippet, category))
     .filter((snippet) => matchesQuery(snippet, search));
 
@@ -688,6 +516,7 @@ export default function App() {
           <h1>Copyboard</h1>
           <p className="sidebar__copy">Fast personal snippets with GitHub sync, a floating mini-mode, tray support, and a global shortcut.</p>
         </div>
+
         <div className="category-list">
           <button type="button" className={category === 'all' ? 'is-active' : ''} onClick={() => setCategory('all')}>
             All snippets
@@ -710,6 +539,7 @@ export default function App() {
             );
           })}
         </div>
+
         <div className="group-manager">
           <p className="eyebrow">Group management</p>
           <div className="group-manager__create">
@@ -724,15 +554,10 @@ export default function App() {
               </div>
             ))}
           </div>
+
           <div className="group-manager__create">
-            <input
-              value={newGroupName}
-              onChange={(event) => setNewGroupName(event.target.value)}
-              placeholder="New group"
-            />
-            <button type="button" className="ghost-button" onClick={() => void handleCreateGroup()}>
-              Add
-            </button>
+            <input value={newGroupName} onChange={(event) => setNewGroupName(event.target.value)} placeholder="New group" />
+            <button type="button" className="ghost-button" onClick={() => void handleCreateGroup()}>Add</button>
           </div>
           <div className="group-manager__list">
             {data.groups.map((group) => (
@@ -742,43 +567,29 @@ export default function App() {
                   <option value="">No folder</option>
                   {data.folders.map((folder) => <option key={folder} value={folder}>{folder}</option>)}
                 </select>
-                <button type="button" className="ghost-button" onClick={() => void handleDeleteGroup(group)}>
-                  Remove
-                </button>
+                <button type="button" className="ghost-button" onClick={() => void handleDeleteGroup(group)}>Remove</button>
               </div>
             ))}
           </div>
-            <div className="group-manager__rename">
-              <select value={renameFromGroup} onChange={(event) => setRenameFromGroup(event.target.value)}>
-                {data.groups.map((group) => (
-                  <option key={group} value={group}>{group}</option>
-                ))}
-              </select>
-              <input
-                value={renameToGroup}
-                onChange={(event) => setRenameToGroup(event.target.value)}
-                placeholder="Rename to"
-              />
-              <button type="button" className="ghost-button" onClick={() => void handleRenameGroup()}>
-                Rename
-              </button>
-            </div>
-            <div className="group-manager__move">
-              <select value={moveFromGroup} onChange={(event) => setMoveFromGroup(event.target.value)}>
-                {data.groups.map((group) => (
-                  <option key={group} value={group}>{group}</option>
-                ))}
-              </select>
-              <span>to</span>
-              <select value={moveToGroup} onChange={(event) => setMoveToGroup(event.target.value)}>
-                {data.groups.map((group) => (
-                  <option key={group} value={group}>{group}</option>
-                ))}
-              </select>
-              <button type="button" className="ghost-button" onClick={() => void handleMoveGroupSnippets()}>
-                Move snippets
-              </button>
-            </div>
+
+          <div className="group-manager__rename">
+            <select value={renameFromGroup} onChange={(event) => setRenameFromGroup(event.target.value)}>
+              {data.groups.map((group) => <option key={group} value={group}>{group}</option>)}
+            </select>
+            <input value={renameToGroup} onChange={(event) => setRenameToGroup(event.target.value)} placeholder="Rename to" />
+            <button type="button" className="ghost-button" onClick={() => void handleRenameGroup()}>Rename</button>
+          </div>
+
+          <div className="group-manager__move">
+            <select value={moveFromGroup} onChange={(event) => setMoveFromGroup(event.target.value)}>
+              {data.groups.map((group) => <option key={group} value={group}>{group}</option>)}
+            </select>
+            <span>to</span>
+            <select value={moveToGroup} onChange={(event) => setMoveToGroup(event.target.value)}>
+              {data.groups.map((group) => <option key={group} value={group}>{group}</option>)}
+            </select>
+            <button type="button" className="ghost-button" onClick={() => void handleMoveGroupSnippets()}>Move snippets</button>
+          </div>
         </div>
       </aside>
 
@@ -839,18 +650,16 @@ export default function App() {
             floatingIconOpacity: data.preferences.floatingIconOpacity,
             floatingHoverDelayMs: data.preferences.floatingHoverDelayMs,
           }}
-          onSave={(settings) =>
-            void handleSaveSettings(
-              settings.syncSettings,
-              settings.themeMode,
-              settings.autostartEnabled,
-              settings.floatingCollapseMode,
-              settings.floatingAnimation,
-              settings.floatingIconScale,
-              settings.floatingIconOpacity,
-              settings.floatingHoverDelayMs,
-            )
-          }
+          onSave={(settings) => void handleSaveSettings(
+            settings.syncSettings,
+            settings.themeMode,
+            settings.autostartEnabled,
+            settings.floatingCollapseMode,
+            settings.floatingAnimation,
+            settings.floatingIconScale,
+            settings.floatingIconOpacity,
+            settings.floatingHoverDelayMs,
+          )}
           onClose={() => setShowSettings(false)}
         />
       ) : null}

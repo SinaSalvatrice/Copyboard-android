@@ -1,5 +1,7 @@
 package de.circuitcurios.copyboard
 
+import java.time.Instant
+
 data class ChecklistItem(
     val id: String,
     val text: String,
@@ -13,7 +15,9 @@ data class Snippet(
     val mode: String = "text",
     val checklistItems: List<ChecklistItem> = emptyList(),
     val category: String = "General",
-    val favorite: Boolean = false
+    val favorite: Boolean = false,
+    val updatedAt: String = Instant.now().toString(),
+    val deleted: Boolean = false
 ) {
     fun clipboardText(): String {
         if (mode == "checklist") {

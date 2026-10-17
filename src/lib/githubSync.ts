@@ -10,6 +10,13 @@ interface RemoteFile {
   payload: SyncPayload | null;
 }
 
+export interface SyncState {
+  snippets: Snippet[];
+  groups: string[];
+  folders: string[];
+  groupFolders: Record<string, string | null>;
+}
+
 export class GitHubSyncError extends Error {
   constructor(public readonly code: string, message: string) {
     super(message);
@@ -42,18 +49,79 @@ function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
     checklistItems,
     category: snippet.category?.trim() || 'General',
     favorite: Boolean(snippet.favorite),
-    updatedAt: snippet.updatedAt ?? new Date().toISOString(),
-    deleted: snippet.deleted,
+    updatedAt: snippet.updatedAt ?? new Date(0).toISOString(),
+    deleted: Boolean(snippet.deleted),
   };
 }
 
-function toPayload(snippets: Snippet[]): SyncPayload {
+function normalizeNames(values: string[] | undefined) {
+  return Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function normalizeGroupFolders(
+  value: Record<string, string | null> | undefined,
+  groups: string[],
+  folders: string[],
+) {
+  const validFolders = new Set(folders);
+  const result: Record<string, string | null> = {};
+
+  for (const group of groups) {
+    const folder = value?.[group] ?? null;
+    result[group] = folder && validFolders.has(folder) ? folder : null;
+  }
+
+  return result;
+}
+
+function activeCategories(snippets: Snippet[]) {
+  return snippets
+    .filter((snippet) => !snippet.deleted)
+    .map((snippet) => snippet.category);
+}
+
+function sanitizeMetadata(state: Pick<SyncState, 'groups' | 'folders' | 'groupFolders'>, snippets: Snippet[]) {
+  const groups = normalizeNames([...state.groups, ...activeCategories(snippets)]);
+  if (!groups.some((group) => group.toLowerCase() === 'general')) {
+    groups.push('General');
+    groups.sort((left, right) => left.localeCompare(right));
+  }
+  const folders = normalizeNames(state.folders);
+  const groupFolders = normalizeGroupFolders(state.groupFolders, groups, folders);
+  return { groups, folders, groupFolders };
+}
+
+function mergeMetadata(local: SyncState, remote: SyncPayload | null | undefined, preferLocal: boolean) {
+  const remoteGroups = remote?.groups ?? [];
+  const remoteFolders = remote?.folders ?? [];
+  const groups = normalizeNames([
+    ...local.groups,
+    ...remoteGroups,
+    ...activeCategories(local.snippets),
+    ...activeCategories(remote?.snippets ?? []),
+  ]);
+  if (!groups.some((group) => group.toLowerCase() === 'general')) {
+    groups.push('General');
+    groups.sort((left, right) => left.localeCompare(right));
+  }
+
+  const folders = normalizeNames([...local.folders, ...remoteFolders]);
+  const combinedAssignments = preferLocal
+    ? { ...(remote?.groupFolders ?? {}), ...local.groupFolders }
+    : { ...local.groupFolders, ...(remote?.groupFolders ?? {}) };
+  const groupFolders = normalizeGroupFolders(combinedAssignments, groups, folders);
+  return { groups, folders, groupFolders };
+}
+
+function toPayload(state: SyncState): SyncPayload {
+  const snippets = state.snippets.map((snippet) => normalizeSnippet(snippet));
+  const metadata = sanitizeMetadata(state, snippets);
   return {
-    version: 1,
+    version: 2,
     updatedAt: new Date().toISOString(),
-    snippets: snippets.map((snippet) => ({
-      ...normalizeSnippet(snippet),
-    })),
+    snippets,
+    ...metadata,
   };
 }
 
@@ -67,22 +135,27 @@ function parsePayload(raw: string): SyncPayload {
   }
 
   if (Array.isArray(parsed)) {
-    return {
-      version: 1,
-      updatedAt: new Date().toISOString(),
-      snippets: parsed.map((snippet) => normalizeSnippet(snippet as Partial<Snippet>)),
-    };
+    const snippets = parsed.map((snippet) => normalizeSnippet(snippet as Partial<Snippet>));
+    return toPayload({ snippets, groups: [], folders: [], groupFolders: {} });
   }
 
-  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as SyncPayload).snippets)) {
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Partial<SyncPayload>).snippets)) {
     throw new GitHubSyncError('invalid-json', 'Remote JSON does not contain a valid snippets array.');
   }
 
-  const payload = parsed as SyncPayload;
+  const rawPayload = parsed as Partial<SyncPayload>;
+  const snippets = (rawPayload.snippets ?? []).map((snippet) => normalizeSnippet(snippet));
+  const metadata = sanitizeMetadata({
+    groups: rawPayload.groups ?? [],
+    folders: rawPayload.folders ?? [],
+    groupFolders: rawPayload.groupFolders ?? {},
+  }, snippets);
+
   return {
-    version: typeof payload.version === 'number' ? payload.version : 1,
-    updatedAt: payload.updatedAt ?? new Date().toISOString(),
-    snippets: payload.snippets.map((snippet) => normalizeSnippet(snippet)),
+    version: typeof rawPayload.version === 'number' ? rawPayload.version : 1,
+    updatedAt: rawPayload.updatedAt ?? new Date(0).toISOString(),
+    snippets,
+    ...metadata,
   };
 }
 
@@ -164,77 +237,85 @@ async function getRemoteFile(settings: GitHubSyncSettings): Promise<RemoteFile> 
   }
 }
 
-export function mergeSnippets(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
+function sortSnippets(snippets: Snippet[]) {
+  return [...snippets].sort((left, right) => {
+    if (left.favorite !== right.favorite) {
+      return left.favorite ? -1 : 1;
+    }
+    return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
+  });
+}
+
+function mergeSnippetsWithTombstones(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
   const merged = new Map<string, Snippet>();
 
   const mergeOne = (snippet: Snippet) => {
-    const current = merged.get(snippet.id);
+    const candidate = normalizeSnippet(snippet);
+    const current = merged.get(candidate.id);
     if (!current) {
-      merged.set(snippet.id, normalizeSnippet(snippet));
+      merged.set(candidate.id, candidate);
       return;
     }
 
-    const currentTime = Date.parse(current.updatedAt || '1970-01-01T00:00:00.000Z');
-    const nextTime = Date.parse(snippet.updatedAt || '1970-01-01T00:00:00.000Z');
-    if (Number.isNaN(nextTime) || currentTime >= nextTime) {
+    const currentTime = Date.parse(current.updatedAt || new Date(0).toISOString());
+    const nextTime = Date.parse(candidate.updatedAt || new Date(0).toISOString());
+    if (Number.isNaN(nextTime) || currentTime > nextTime) {
       return;
     }
 
-    merged.set(snippet.id, normalizeSnippet(snippet));
+    merged.set(candidate.id, candidate);
   };
 
   localSnippets.forEach(mergeOne);
   remoteSnippets.forEach(mergeOne);
-
-  return Array.from(merged.values())
-    .filter((snippet) => !snippet.deleted)
-    .sort((left, right) => {
-      if (left.favorite !== right.favorite) {
-        return left.favorite ? -1 : 1;
-      }
-
-      return Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-    });
+  return sortSnippets(Array.from(merged.values()));
 }
 
-export async function pullFromGitHub(settings: GitHubSyncSettings, localSnippets: Snippet[]) {
+export function mergeSnippets(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
+  return mergeSnippetsWithTombstones(localSnippets, remoteSnippets);
+}
+
+function mergeSyncState(local: SyncState, remote: SyncPayload | null | undefined, preferLocalMetadata: boolean): SyncState {
+  const snippets = mergeSnippetsWithTombstones(local.snippets, remote?.snippets ?? []);
+  const metadata = mergeMetadata(local, remote, preferLocalMetadata);
+  return {
+    snippets,
+    ...metadata,
+  };
+}
+
+async function writeRemote(settings: GitHubSyncSettings, remote: RemoteFile, state: SyncState) {
+  const payload = {
+    message: 'Sync Copyboard data',
+    content: encodeBase64(JSON.stringify(toPayload(state), null, 2)),
+    branch: settings.branch,
+    ...(remote.sha ? { sha: remote.sha } : {}),
+  };
+
+  await request(settings, buildContentsUrl(settings, false), {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function pullFromGitHub(settings: GitHubSyncSettings, local: SyncState): Promise<SyncState> {
   const remote = await getRemoteFile(settings);
   if (!remote.payload) {
     throw new GitHubSyncError('not-found', 'copyboard-sync.json does not exist yet. Push once to create it.');
   }
 
-  return mergeSnippets(localSnippets, remote.payload.snippets);
+  return mergeSyncState(local, remote.payload, false);
 }
 
-export async function pushToGitHub(settings: GitHubSyncSettings, snippets: Snippet[]) {
+export async function pushToGitHub(settings: GitHubSyncSettings, local: SyncState) {
   const remote = await getRemoteFile(settings);
-  const payload = {
-    message: 'Sync Copyboard snippets',
-    content: encodeBase64(JSON.stringify(toPayload(snippets), null, 2)),
-    branch: settings.branch,
-    ...(remote.sha ? { sha: remote.sha } : {}),
-  };
-
-  await request(settings, buildContentsUrl(settings, false), {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
+  const outgoing = mergeSyncState(local, remote.payload, true);
+  await writeRemote(settings, remote, outgoing);
 }
 
-export async function syncWithGitHub(settings: GitHubSyncSettings, localSnippets: Snippet[]) {
+export async function syncWithGitHub(settings: GitHubSyncSettings, local: SyncState): Promise<SyncState> {
   const remote = await getRemoteFile(settings);
-  const merged = mergeSnippets(localSnippets, remote.payload?.snippets ?? []);
-  const payload = {
-    message: 'Sync Copyboard snippets',
-    content: encodeBase64(JSON.stringify(toPayload(merged), null, 2)),
-    branch: settings.branch,
-    ...(remote.sha ? { sha: remote.sha } : {}),
-  };
-
-  await request(settings, buildContentsUrl(settings, false), {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
-
+  const merged = mergeSyncState(local, remote.payload, true);
+  await writeRemote(settings, remote, merged);
   return merged;
 }

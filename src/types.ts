@@ -60,6 +60,9 @@ export interface SyncPayload {
   version: number;
   updatedAt: string;
   snippets: Snippet[];
+  groups: string[];
+  folders: string[];
+  groupFolders: Record<string, string | null>;
 }
 
 export type CategoryFilter = 'all' | 'favorites' | string;
