@@ -1,6 +1,7 @@
 package de.circuitcurios.copyboard
 
 import android.util.Base64
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -28,7 +29,20 @@ class GitHubSyncClient(private val config: GitHubSyncConfig) {
         )
         val json = JSONObject(response)
         val encoded = json.getString("content").replace("\n", "")
-        return String(Base64.decode(encoded, Base64.DEFAULT), StandardCharsets.UTF_8)
+        val decoded = String(Base64.decode(encoded, Base64.DEFAULT), StandardCharsets.UTF_8)
+        val trimmed = decoded.trim()
+
+        return if (trimmed.startsWith("[")) {
+            JSONObject()
+                .put("version", 1)
+                .put("snippets", JSONArray(trimmed))
+                .put(SnippetStore.SYNC_MERGE_MARKER, true)
+                .toString()
+        } else {
+            JSONObject(trimmed)
+                .put(SnippetStore.SYNC_MERGE_MARKER, true)
+                .toString()
+        }
     }
 
     fun save(content: String) {
