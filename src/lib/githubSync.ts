@@ -10,6 +10,13 @@ interface RemoteFile {
   payload: SyncPayload | null;
 }
 
+export interface SyncState {
+  snippets: Snippet[];
+  groups: string[];
+  folders: string[];
+  groupFolders: Record<string, string | null>;
+}
+
 export class GitHubSyncError extends Error {
   constructor(public readonly code: string, message: string) {
     super(message);
@@ -57,39 +64,63 @@ function normalizeGroupFolders(
   groups: string[],
   folders: string[],
 ) {
-  const validGroups = new Set(groups);
   const validFolders = new Set(folders);
   const result: Record<string, string | null> = {};
 
   for (const group of groups) {
     const folder = value?.[group] ?? null;
-    result[group] = folder && validGroups.has(group) && validFolders.has(folder) ? folder : null;
+    result[group] = folder && validFolders.has(folder) ? folder : null;
   }
 
   return result;
 }
 
-function payloadMetadata(base: SyncPayload | null | undefined, snippets: Snippet[]) {
-  const activeCategories = snippets
+function activeCategories(snippets: Snippet[]) {
+  return snippets
     .filter((snippet) => !snippet.deleted)
     .map((snippet) => snippet.category);
-  const groups = normalizeNames([...(base?.groups ?? []), ...activeCategories]);
+}
+
+function sanitizeMetadata(state: Pick<SyncState, 'groups' | 'folders' | 'groupFolders'>, snippets: Snippet[]) {
+  const groups = normalizeNames([...state.groups, ...activeCategories(snippets)]);
   if (!groups.some((group) => group.toLowerCase() === 'general')) {
     groups.push('General');
     groups.sort((left, right) => left.localeCompare(right));
   }
-  const folders = normalizeNames(base?.folders);
-  const groupFolders = normalizeGroupFolders(base?.groupFolders, groups, folders);
+  const folders = normalizeNames(state.folders);
+  const groupFolders = normalizeGroupFolders(state.groupFolders, groups, folders);
   return { groups, folders, groupFolders };
 }
 
-function toPayload(snippets: Snippet[], base?: SyncPayload | null): SyncPayload {
-  const normalized = snippets.map((snippet) => normalizeSnippet(snippet));
-  const metadata = payloadMetadata(base, normalized);
+function mergeMetadata(local: SyncState, remote: SyncPayload | null | undefined, preferLocal: boolean) {
+  const remoteGroups = remote?.groups ?? [];
+  const remoteFolders = remote?.folders ?? [];
+  const groups = normalizeNames([
+    ...local.groups,
+    ...remoteGroups,
+    ...activeCategories(local.snippets),
+    ...activeCategories(remote?.snippets ?? []),
+  ]);
+  if (!groups.some((group) => group.toLowerCase() === 'general')) {
+    groups.push('General');
+    groups.sort((left, right) => left.localeCompare(right));
+  }
+
+  const folders = normalizeNames([...local.folders, ...remoteFolders]);
+  const combinedAssignments = preferLocal
+    ? { ...(remote?.groupFolders ?? {}), ...local.groupFolders }
+    : { ...local.groupFolders, ...(remote?.groupFolders ?? {}) };
+  const groupFolders = normalizeGroupFolders(combinedAssignments, groups, folders);
+  return { groups, folders, groupFolders };
+}
+
+function toPayload(state: SyncState): SyncPayload {
+  const snippets = state.snippets.map((snippet) => normalizeSnippet(snippet));
+  const metadata = sanitizeMetadata(state, snippets);
   return {
     version: 2,
     updatedAt: new Date().toISOString(),
-    snippets: normalized,
+    snippets,
     ...metadata,
   };
 }
@@ -104,7 +135,8 @@ function parsePayload(raw: string): SyncPayload {
   }
 
   if (Array.isArray(parsed)) {
-    return toPayload(parsed.map((snippet) => normalizeSnippet(snippet as Partial<Snippet>)));
+    const snippets = parsed.map((snippet) => normalizeSnippet(snippet as Partial<Snippet>));
+    return toPayload({ snippets, groups: [], folders: [], groupFolders: {} });
   }
 
   if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as Partial<SyncPayload>).snippets)) {
@@ -113,10 +145,7 @@ function parsePayload(raw: string): SyncPayload {
 
   const rawPayload = parsed as Partial<SyncPayload>;
   const snippets = (rawPayload.snippets ?? []).map((snippet) => normalizeSnippet(snippet));
-  const metadata = payloadMetadata({
-    version: rawPayload.version ?? 1,
-    updatedAt: rawPayload.updatedAt ?? new Date(0).toISOString(),
-    snippets,
+  const metadata = sanitizeMetadata({
     groups: rawPayload.groups ?? [],
     folders: rawPayload.folders ?? [],
     groupFolders: rawPayload.groupFolders ?? {},
@@ -243,50 +272,50 @@ function mergeSnippetsWithTombstones(localSnippets: Snippet[], remoteSnippets: S
 }
 
 export function mergeSnippets(localSnippets: Snippet[], remoteSnippets: Snippet[]): Snippet[] {
-  return mergeSnippetsWithTombstones(localSnippets, remoteSnippets)
-    .filter((snippet) => !snippet.deleted);
+  return mergeSnippetsWithTombstones(localSnippets, remoteSnippets);
 }
 
-export async function pullFromGitHub(settings: GitHubSyncSettings, localSnippets: Snippet[]) {
+function mergeSyncState(local: SyncState, remote: SyncPayload | null | undefined, preferLocalMetadata: boolean): SyncState {
+  const snippets = mergeSnippetsWithTombstones(local.snippets, remote?.snippets ?? []);
+  const metadata = mergeMetadata(local, remote, preferLocalMetadata);
+  return {
+    snippets,
+    ...metadata,
+  };
+}
+
+async function writeRemote(settings: GitHubSyncSettings, remote: RemoteFile, state: SyncState) {
+  const payload = {
+    message: 'Sync Copyboard data',
+    content: encodeBase64(JSON.stringify(toPayload(state), null, 2)),
+    branch: settings.branch,
+    ...(remote.sha ? { sha: remote.sha } : {}),
+  };
+
+  await request(settings, buildContentsUrl(settings, false), {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function pullFromGitHub(settings: GitHubSyncSettings, local: SyncState): Promise<SyncState> {
   const remote = await getRemoteFile(settings);
   if (!remote.payload) {
     throw new GitHubSyncError('not-found', 'copyboard-sync.json does not exist yet. Push once to create it.');
   }
 
-  return mergeSnippets(localSnippets, remote.payload.snippets);
+  return mergeSyncState(local, remote.payload, false);
 }
 
-export async function pushToGitHub(settings: GitHubSyncSettings, snippets: Snippet[]) {
+export async function pushToGitHub(settings: GitHubSyncSettings, local: SyncState) {
   const remote = await getRemoteFile(settings);
-  const remoteTombstones = remote.payload?.snippets.filter((snippet) => snippet.deleted) ?? [];
-  const outgoing = mergeSnippetsWithTombstones(snippets, remoteTombstones);
-  const payload = {
-    message: 'Sync Copyboard snippets',
-    content: encodeBase64(JSON.stringify(toPayload(outgoing, remote.payload), null, 2)),
-    branch: settings.branch,
-    ...(remote.sha ? { sha: remote.sha } : {}),
-  };
-
-  await request(settings, buildContentsUrl(settings, false), {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
+  const outgoing = mergeSyncState(local, remote.payload, true);
+  await writeRemote(settings, remote, outgoing);
 }
 
-export async function syncWithGitHub(settings: GitHubSyncSettings, localSnippets: Snippet[]) {
+export async function syncWithGitHub(settings: GitHubSyncSettings, local: SyncState): Promise<SyncState> {
   const remote = await getRemoteFile(settings);
-  const mergedWithTombstones = mergeSnippetsWithTombstones(localSnippets, remote.payload?.snippets ?? []);
-  const payload = {
-    message: 'Sync Copyboard snippets',
-    content: encodeBase64(JSON.stringify(toPayload(mergedWithTombstones, remote.payload), null, 2)),
-    branch: settings.branch,
-    ...(remote.sha ? { sha: remote.sha } : {}),
-  };
-
-  await request(settings, buildContentsUrl(settings, false), {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
-
-  return mergedWithTombstones.filter((snippet) => !snippet.deleted);
+  const merged = mergeSyncState(local, remote.payload, true);
+  await writeRemote(settings, remote, merged);
+  return merged;
 }
