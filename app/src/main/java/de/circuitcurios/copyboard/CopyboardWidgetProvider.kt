@@ -92,7 +92,7 @@ class CopyboardWidgetProvider : AppWidgetProvider() {
             val groups = store.getGroups()
             val activeGroup = resolveGroupForWidget(context, appWidgetId, groups)
 
-            val openIntent = Intent(context, MainActivity::class.java)
+            val openIntent = Intent(context, DashboardActivity::class.java)
             val openPendingIntent = PendingIntent.getActivity(
                 context,
                 appWidgetId,
