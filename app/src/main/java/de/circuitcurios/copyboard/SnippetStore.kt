@@ -210,7 +210,9 @@ class SnippetStore(context: Context) {
             snippets = parseSnippetArray(obj.getJSONArray("snippets")),
             groups = groupArray?.let { array -> List(array.length()) { array.optString(it) } } ?: emptyList(),
             folders = folderArray?.let { array -> List(array.length()) { array.optString(it) } } ?: emptyList(),
-            groupFolders = assignments?.keys()?.asSequence()?.associateWith { assignments.optString(it) } ?: emptyMap(),
+            groupFolders = assignments?.let { assignmentObj ->
+                assignmentObj.keys().asSequence().associateWith { key -> assignmentObj.optString(key) }
+            } ?: emptyMap(),
             syncMerge = obj.optBoolean(SYNC_MERGE_MARKER, false)
         )
     }
