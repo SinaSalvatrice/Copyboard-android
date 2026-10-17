@@ -20,23 +20,23 @@ fun resolveAppColors(context: Context): AppColors {
 
     return if (dark) {
         AppColors(
-            background = Color.rgb(18, 18, 18),
-            surface = Color.rgb(31, 31, 31),
-            inputSurface = Color.rgb(26, 26, 26),
-            textPrimary = Color.rgb(245, 245, 245),
-            textSecondary = Color.rgb(170, 170, 170),
-            border = Color.rgb(70, 70, 70),
-            accent = Color.rgb(230, 230, 230)
+            background = Color.rgb(18, 19, 22),
+            surface = Color.rgb(28, 30, 35),
+            inputSurface = Color.rgb(32, 34, 40),
+            textPrimary = Color.rgb(241, 241, 238),
+            textSecondary = Color.rgb(164, 167, 173),
+            border = Color.rgb(58, 61, 68),
+            accent = Color.rgb(143, 169, 159)
         )
     } else {
         AppColors(
-            background = Color.rgb(250, 250, 250),
+            background = Color.rgb(246, 246, 243),
             surface = Color.WHITE,
-            inputSurface = Color.WHITE,
-            textPrimary = Color.rgb(25, 25, 25),
-            textSecondary = Color.rgb(90, 90, 90),
-            border = Color.rgb(226, 226, 226),
-            accent = Color.rgb(34, 34, 34)
+            inputSurface = Color.rgb(250, 250, 248),
+            textPrimary = Color.rgb(31, 33, 36),
+            textSecondary = Color.rgb(102, 106, 111),
+            border = Color.rgb(220, 222, 218),
+            accent = Color.rgb(65, 91, 82)
         )
     }
 }
