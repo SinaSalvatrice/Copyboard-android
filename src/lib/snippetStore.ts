@@ -33,7 +33,7 @@ function normalizeSnippet(snippet: Partial<Snippet>): Snippet {
     category: snippet.category?.trim() || 'General',
     favorite: Boolean(snippet.favorite),
     updatedAt: snippet.updatedAt ?? new Date().toISOString(),
-    deleted: snippet.deleted,
+    deleted: Boolean(snippet.deleted),
   };
 }
 
@@ -70,7 +70,10 @@ function normalizeSyncSettings(settings?: Partial<GitHubSyncSettings>): GitHubSy
 }
 
 function normalizeGroups(groups: string[] | undefined, snippets: Snippet[]): string[] {
-  const fromSnippets = snippets.map((snippet) => snippet.category.trim()).filter(Boolean);
+  const fromSnippets = snippets
+    .filter((snippet) => !snippet.deleted)
+    .map((snippet) => snippet.category.trim())
+    .filter(Boolean);
   const merged = [...(groups ?? []), ...fromSnippets]
     .map((group) => group.trim())
     .filter(Boolean)
@@ -92,8 +95,7 @@ function normalizeFolders(folders: string[] | undefined): string[] {
 export function normalizeStoredData(data?: Partial<StoredData>): StoredData {
   const defaults = defaultStoredData();
   const snippets = (data?.snippets?.length ? data.snippets : defaults.snippets)
-    .map(normalizeSnippet)
-    .filter((snippet) => !snippet.deleted);
+    .map(normalizeSnippet);
   const groups = normalizeGroups(data?.groups, snippets);
   const folders = normalizeFolders(data?.folders);
   const groupFolders = Object.fromEntries(groups.map((group) => {
@@ -102,7 +104,7 @@ export function normalizeStoredData(data?: Partial<StoredData>): StoredData {
   }));
 
   return {
-    version: data?.version ?? 1,
+    version: Math.max(data?.version ?? 1, 2),
     updatedAt: data?.updatedAt ?? defaults.updatedAt,
     snippets,
     groups,
@@ -156,6 +158,7 @@ export function recordSnippetUsage(data: StoredData, snippetId: string): StoredD
 export function upsertSnippet(snippets: Snippet[], draft: Snippet): Snippet[] {
   const next = normalizeSnippet({
     ...draft,
+    deleted: false,
     updatedAt: new Date().toISOString(),
   });
   const index = snippets.findIndex((snippet) => snippet.id === next.id);
@@ -168,7 +171,12 @@ export function upsertSnippet(snippets: Snippet[], draft: Snippet): Snippet[] {
 }
 
 export function removeSnippet(snippets: Snippet[], snippetId: string): Snippet[] {
-  return snippets.filter((snippet) => snippet.id !== snippetId);
+  const now = new Date().toISOString();
+  return snippets.map((snippet) => (
+    snippet.id === snippetId
+      ? { ...snippet, deleted: true, updatedAt: now }
+      : snippet
+  ));
 }
 
 export function isSyncConfigured(settings: GitHubSyncSettings): boolean {
